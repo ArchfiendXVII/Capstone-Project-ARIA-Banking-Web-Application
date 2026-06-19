@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+
+{% block title %}Login | ARIA Bank{% endblock %}
+{% block page_title %}Account Login{% endblock %}
+
+{% block content %}
+<section class="auth-cinematic">
+    <aside class="auth-story">
+        <div class="auth-story-top">
+            <p class="eyebrow">ARIA Premier</p>
+            <h2>Move through banking with quiet confidence.</h2>
+            <p>Balances, cards, transfers, and statements live inside one refined digital workspace built for daily banking flow.</p>
+        </div>
+
+        <div class="auth-chip-row">
+            <span>Private banking</span>
+            <span>Card management</span>
+            <span>Realtime activity</span>
+        </div>
+
+        <div class="auth-story-bottom">
+            <div class="auth-story-metrics">
+                <article><span>Transfer Speed</span><strong>Instant</strong></article>
+                <article><span>Card Controls</span><strong>Live</strong></article>
+                <article><span>Support</span><strong>24/7</strong></article>
+            </div>
+
+            <div class="auth-visual-stage" aria-hidden="true">
+                <article class="auth-card auth-card-primary">
+                    <div class="auth-card-head">
+                        <span>ARIA Obsidian</span>
+                        <i data-lucide="wifi"></i>
+                    </div>
+                    <strong>**** 8124</strong>
+                    <div class="auth-card-meta">
+                        <span>World Elite</span>
+                        <small>Virtual + Physical</small>
+                    </div>
+                </article>
+
+                <article class="auth-card auth-card-secondary">
+                    <div class="auth-card-head">
+                        <span>ARIA Platinum</span>
+                        <i data-lucide="credit-card"></i>
+                    </div>
+                    <strong>**** 5698</strong>
+                    <div class="auth-card-meta">
+                        <span>Travel Rewards</span>
+                        <small>Priority Access</small>
+                    </div>
+                </article>
+
+                <article class="auth-visual-ledger">
+                    <div>
+                        <span>Portfolio</span>
+                        <strong>$84,220</strong>
+                    </div>
+                    <div>
+                        <span>Today</span>
+                        <small>3 transfers cleared</small>
+                    </div>
+                </article>
+            </div>
+        </div>
+    </aside>
+
+    <section class="auth-form-card">
+        <p class="eyebrow">Secure Sign In</p>
+        <h2>Welcome back</h2>
+        <p class="panel-subtitle">Sign in to continue to your account overview and transactions.</p>
+        <form method="post" class="form-stack">
+            <label>Email
+                <input class="form-control" type="email" name="email" autocomplete="username" required>
+            </label>
+            <label>Password
+                <input class="form-control" type="password" name="password" autocomplete="current-password" required>
+            </label>
+            <button class="btn btn-accent w-100" type="submit"><i data-lucide="log-in"></i> Sign In</button>
+        </form>
+        <p class="auth-switch">New to ARIA? <a href="{{ url_for('register') }}">Open an account</a></p>
+    </section>
+</section>
+{% endblock %}

@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% block title %}Transfer | ARIA Bank{% endblock %}
+{% block page_title %}Money Transfer{% endblock %}
+
+{% block content %}
+<section class="page-banner compact">
+    <div>
+        <p class="eyebrow">Payments</p>
+        <h2>Move funds in seconds</h2>
+    </div>
+    <div class="banner-chips">
+        <span><i data-lucide="wallet"></i>Available CAD {{ "%.2f"|format(account.balance) }}</span>
+    </div>
+</section>
+
+<div class="split-layout">
+    <section class="form-panel">
+        <p class="eyebrow">Payments</p>
+        <h2>Send a transfer</h2>
+        <form method="post" class="form-stack">
+            <label>Recipient account or email
+                <input class="form-control" name="recipient" list="recipients" placeholder="recipient@email.com" required>
+                <datalist id="recipients">
+                    {% for recipient in recipients %}
+                    <option value="{{ recipient.email }}">{{ recipient.full_name }} - {{ recipient.account_number }}</option>
+                    <option value="{{ recipient.account_number }}">{{ recipient.full_name }}</option>
+                    {% endfor %}
+                </datalist>
+            </label>
+            <label>Amount
+                <input class="form-control" type="number" name="amount" min="0.01" step="0.01" required>
+            </label>
+            <label>Description
+                <input class="form-control" name="description" maxlength="160">
+            </label>
+            <button class="btn btn-accent" type="submit"><i data-lucide="send"></i> Submit Transfer</button>
+        </form>
+    </section>
+    <aside class="evidence-panel">
+        <p class="eyebrow">Transfer Overview</p>
+        <h2>Before you submit</h2>
+        <ul class="evidence-list">
+            <li>Confirm the recipient account or email address.</li>
+            <li>Transfers update balances immediately after submission.</li>
+            <li>Use the description field to add a payment memo.</li>
+            <li>Completed transfers appear in transaction history.</li>
+        </ul>
+        <div class="mini-balance">
+            <span>Available balance</span>
+            <strong>CAD {{ "%.2f"|format(account.balance) }}</strong>
+        </div>
+    </aside>
+</div>
+{% endblock %}

@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block title %}Audit Logs | ARIA Bank{% endblock %}
+{% block page_title %}Audit Log Dashboard{% endblock %}
+
+{% block content %}
+<section class="page-banner compact">
+    <div>
+        <p class="eyebrow">Activity</p>
+        <h2>Operational log feed</h2>
+    </div>
+    <div class="banner-chips">
+        <span><i data-lucide="scroll-text"></i>{{ audit_logs|length }} recent events</span>
+    </div>
+</section>
+
+<section class="table-panel">
+    <div class="panel-heading">
+        <div>
+            <h2>Activity Log</h2>
+            <p class="panel-subtitle">Recent event records and operational actions</p>
+        </div>
+    </div>
+    <div class="table-responsive">
+        <table class="table align-middle">
+            <thead><tr><th>Timestamp</th><th>User</th><th>Event</th><th>Description</th><th>IP</th><th>Severity</th></tr></thead>
+            <tbody>
+                {% for log in audit_logs %}
+                <tr>
+                    <td>{{ log.timestamp }}</td>
+                    <td>{{ log.full_name or 'Unknown' }}<br><small>{{ log.email or 'No email' }}</small></td>
+                    <td><span class="badge text-bg-primary">{{ log.event_type }}</span></td>
+                    <td>{{ log.description }}</td>
+                    <td>{{ log.ip_address or 'Missing' }}</td>
+                    <td><span class="badge {{ 'text-bg-danger' if log.severity == 'High' else 'text-bg-warning' if log.severity == 'Medium' else 'text-bg-secondary' }}">{{ log.severity or 'Missing' }}</span></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}

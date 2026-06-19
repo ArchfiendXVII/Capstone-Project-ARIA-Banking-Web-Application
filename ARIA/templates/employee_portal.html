@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+
+{% block title %}Employee Portal | ARIA Bank{% endblock %}
+{% block page_title %}Employee Portal{% endblock %}
+
+{% block content %}
+<section class="page-banner">
+    <div>
+        <p class="eyebrow">Operations Hub</p>
+        <h2>Employee workspace and account records</h2>
+        <p class="panel-subtitle">Monitor user profiles, document uploads, and service queue activity in one view.</p>
+    </div>
+    <div class="banner-chips">
+        <span><i data-lucide="users-round"></i>{{ users|length }} records</span>
+        <span><i data-lucide="file-stack"></i>{{ documents|length }} recent files</span>
+    </div>
+</section>
+
+<section class="metric-grid">
+    <div class="metric-card warning">
+        <span>Operations</span>
+        <strong>Live</strong>
+        <small>Customer service workspace</small>
+    </div>
+    <div class="metric-card">
+        <span>Customer Records</span>
+        <strong>{{ users|length }}</strong>
+        <small>Customer and staff records</small>
+    </div>
+    <div class="metric-card">
+        <span>Documents</span>
+        <strong>{{ documents|length }}</strong>
+        <small>Recent uploaded files</small>
+    </div>
+    <div class="metric-card">
+        <span>Service Queue</span>
+        <strong>Open</strong>
+        <small>Review recent customer activity</small>
+    </div>
+</section>
+
+<div class="two-column mt-4">
+    <section class="table-panel">
+        <div class="panel-heading">
+            <div>
+                <h2>Customer Records</h2>
+                <p class="panel-subtitle">Customer and staff account details</p>
+            </div>
+        </div>
+        <div class="table-responsive">
+            <table class="table align-middle data-table-wide">
+                <thead><tr><th>ID</th><th>Name</th><th>Email</th><th>Role</th><th>Account</th><th class="text-end">Balance</th></tr></thead>
+                <tbody>
+                    {% for row in users %}
+                    <tr>
+                        <td>{{ row.id }}</td>
+                        <td>{{ row.full_name }}</td>
+                        <td>{{ row.email }}</td>
+                        <td>{{ row.role }}</td>
+                        <td><small>{{ row.account_number or 'N/A' }}</small></td>
+                        <td class="text-end amount-cell">{% if row.balance is not none %}CAD {{ "%.2f"|format(row.balance) }}{% else %}N/A{% endif %}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+    <section class="table-panel">
+        <div class="panel-heading">
+            <div>
+                <h2>Recent Documents</h2>
+                <p class="panel-subtitle">Latest uploaded files and content previews</p>
+            </div>
+        </div>
+        <div class="table-responsive">
+            <table class="table align-middle data-table-medium">
+                <thead><tr><th>Customer</th><th>Filename</th><th>Preview</th></tr></thead>
+                <tbody>
+                    {% for doc in documents %}
+                    <tr>
+                        <td>{{ doc.full_name }}</td>
+                        <td>{{ doc.filename }}</td>
+                        <td>{{ doc.content_preview }}</td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="3" class="empty-state">No documents found.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+</div>
+{% endblock %}

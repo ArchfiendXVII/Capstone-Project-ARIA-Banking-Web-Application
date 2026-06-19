@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Dashboard | ARIA Bank{% endblock %}
+{% block page_title %}Admin Dashboard{% endblock %}
+
+{% block content %}
+<section class="page-banner">
+    <div>
+        <p class="eyebrow">Operations Command</p>
+        <h2>Administrative account oversight</h2>
+        <p class="panel-subtitle">Track account activity, transfer volume, records, and log events from a unified operations dashboard.</p>
+    </div>
+    <div class="banner-chips">
+        <span><i data-lucide="users"></i>{{ stats.users }} users</span>
+        <span><i data-lucide="landmark"></i>{{ stats.transactions }} transactions</span>
+        <span><i data-lucide="triangle-alert"></i>{{ stats.failed_logins }} failed logins</span>
+    </div>
+</section>
+
+<section class="metric-grid">
+    <div class="metric-card"><span>Total Users</span><strong>{{ stats.users }}</strong><small>Customers, staff, admin</small></div>
+    <div class="metric-card"><span>Transactions</span><strong>{{ stats.transactions }}</strong><small>All account activity</small></div>
+    <div class="metric-card"><span>Documents</span><strong>{{ stats.documents }}</strong><small>Customer files on record</small></div>
+    <div class="metric-card"><span>Support Queue</span><strong>{{ stats.support }}</strong><small>Open customer messages</small></div>
+    <div class="metric-card warning"><span>Failed Logins</span><strong>{{ stats.failed_logins }}</strong><small>Recent sign-in issues</small></div>
+</section>
+
+<div class="two-column mt-4">
+    <section class="table-panel">
+        <div class="panel-heading"><h2>High-Value Transfers</h2></div>
+        <table class="table table-sm align-middle">
+            <thead><tr><th>Sender</th><th>Recipient</th><th class="text-end">Amount</th><th>Flag</th></tr></thead>
+            <tbody>
+                {% for tx in high_value %}
+                <tr>
+                    <td>{{ tx.sender_name }}</td>
+                    <td>{{ tx.recipient_name }}</td>
+                    <td class="text-end amount-cell">CAD {{ "%.2f"|format(tx.amount) }}</td>
+                    <td>{% if tx.flagged %}<span class="badge text-bg-danger">Suspicious</span>{% else %}<span class="badge text-bg-secondary">None</span>{% endif %}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="4" class="empty-state">No high-value transfers.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </section>
+    <section class="table-panel">
+        <div class="panel-heading"><h2>Recent Audit Events</h2></div>
+        <table class="table table-sm align-middle">
+            <thead><tr><th>Event</th><th>User</th><th>Severity</th></tr></thead>
+            <tbody>
+                {% for log in recent_logs %}
+                <tr>
+                    <td>{{ log.event_type }}</td>
+                    <td>{{ log.full_name or 'Unknown' }}</td>
+                    <td><span class="badge {{ 'text-bg-danger' if log.severity == 'High' else 'text-bg-warning' if log.severity == 'Medium' else 'text-bg-secondary' }}">{{ log.severity or 'Missing' }}</span></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </section>
+</div>
+{% endblock %}

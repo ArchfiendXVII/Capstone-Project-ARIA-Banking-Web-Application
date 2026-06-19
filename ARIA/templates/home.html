@@ -1,0 +1,204 @@
+{% extends "base.html" %}
+
+{% block title %}ARIA Bank{% endblock %}
+{% block page_title %}Digital Banking{% endblock %}
+
+{% block content %}
+<section class="lux-hero full-bleed">
+    <div class="lux-hero-overlay" aria-hidden="true"></div>
+    <div class="lux-hero-grid">
+        <div class="lux-hero-copy">
+            <p class="eyebrow">Private Banking Experience</p>
+            <h1>Where premium banking feels effortless.</h1>
+            <p>From daily spending to wealth movement, ARIA brings clarity, control, and elevated service into one elegant digital experience.</p>
+            <div class="lux-hero-cta">
+                <a class="btn btn-accent" href="{{ url_for('register') }}"><i data-lucide="sparkles"></i> Open Premium Account</a>
+                <a class="btn btn-outline-light" href="{{ url_for('login') }}"><i data-lucide="log-in"></i> Sign In</a>
+            </div>
+            <div class="lux-hero-kpis">
+                <div><span>Transfer execution</span><strong>Instant</strong></div>
+                <div><span>Card controls</span><strong>Realtime</strong></div>
+                <div><span>Concierge support</span><strong>24/7</strong></div>
+            </div>
+        </div>
+        <div class="lux-hero-cards">
+            <article class="lux-card lux-card-obsidian">
+                <div class="lux-card-top">
+                    <span>ARIA Obsidian</span>
+                    <i data-lucide="wifi"></i>
+                </div>
+                <strong>**** 8124</strong>
+                <div class="lux-card-bottom">
+                    <span>Virtual + Physical</span>
+                    <small>World Elite</small>
+                </div>
+            </article>
+
+            <article class="lux-card lux-card-platinum">
+                <div class="lux-card-top">
+                    <span>ARIA Platinum</span>
+                    <i data-lucide="credit-card"></i>
+                </div>
+                <strong>**** 5698</strong>
+                <div class="lux-card-bottom">
+                    <span>Travel Rewards</span>
+                    <small>Priority Access</small>
+                </div>
+            </article>
+
+            <article class="lux-glass-panel">
+                <p>Card activity</p>
+                <div class="lux-glass-row"><span>Private lounge pass</span><strong>-$320.00</strong></div>
+                <div class="lux-glass-row"><span>International transfer</span><strong>+$12,400.00</strong></div>
+                <div class="lux-glass-row"><span>Personal portfolio</span><strong>$84,220.00</strong></div>
+            </article>
+        </div>
+    </div>
+</section>
+
+<section class="landing-overview landing-anchor" id="accounts">
+    <div class="landing-shell">
+        <div class="landing-section-intro">
+            <p class="eyebrow">Accounts</p>
+            <h2>One ARIA workspace across personal banking, premium cards, and everyday cash movement.</h2>
+            <p>From account visibility to statement search and service resolution, every high-frequency action stays close at hand.</p>
+        </div>
+        <div class="overview-grid">
+            <article class="overview-panel">
+                <p class="eyebrow">Personal Banking</p>
+                <h3>Unified balances, activity, and account context in one live dashboard.</h3>
+                <span>View recent transactions, balances, and account details without leaving the main workspace.</span>
+            </article>
+            <article class="overview-panel">
+                <p class="eyebrow">Payments</p>
+                <h3>Fast transfers with notes, recipient lookup, and immediate balance updates.</h3>
+                <span>Send funds between ARIA accounts and track movement history from the same flow.</span>
+            </article>
+            <article class="overview-panel">
+                <p class="eyebrow">Service Access</p>
+                <h3>Support, uploaded documents, and statement search sit directly inside the account experience.</h3>
+                <span>Resolve issues, review files, and move between customer and operations views without friction.</span>
+            </article>
+        </div>
+    </div>
+</section>
+
+<section class="landing-detail landing-detail-cards landing-anchor" id="cards">
+    <div class="landing-shell landing-detail-grid">
+        <div class="landing-copy">
+            <p class="eyebrow">Cards</p>
+            <h2>Premium cards built for daily spending, travel, and instant control.</h2>
+            <p>ARIA cards are surfaced as products, not afterthoughts. Virtual issuance, travel-ready tiers, live activity visibility, and clear card context all sit inside the same banking flow.</p>
+            <div class="landing-pill-row">
+                <span><i data-lucide="sparkles"></i> Premium tiers</span>
+                <span><i data-lucide="wallet-cards"></i> Virtual + physical</span>
+                <span><i data-lucide="sliders-horizontal"></i> Live controls</span>
+            </div>
+        </div>
+
+        <div class="landing-card-showcase">
+            <article class="landing-card-panel landing-card-panel-primary">
+                <div class="landing-card-head">
+                    <span>ARIA Obsidian</span>
+                    <i data-lucide="wifi"></i>
+                </div>
+                <strong>**** 8124</strong>
+                <div class="landing-card-foot">
+                    <span>World Elite</span>
+                    <small>Travel + lounge access</small>
+                </div>
+            </article>
+
+            <article class="landing-card-panel landing-card-panel-secondary">
+                <div class="landing-card-head">
+                    <span>ARIA Platinum</span>
+                    <i data-lucide="credit-card"></i>
+                </div>
+                <strong>**** 5698</strong>
+                <div class="landing-card-foot">
+                    <span>Rewards</span>
+                    <small>Everyday cash movement</small>
+                </div>
+            </article>
+
+            <article class="landing-card-ledger">
+                <div class="landing-ledger-row">
+                    <span>Card controls</span>
+                    <strong>Realtime</strong>
+                </div>
+                <div class="landing-ledger-row">
+                    <span>International use</span>
+                    <strong>Enabled</strong>
+                </div>
+                <div class="landing-ledger-row">
+                    <span>Travel rewards</span>
+                    <strong>Priority</strong>
+                </div>
+            </article>
+        </div>
+    </div>
+</section>
+
+<section class="landing-detail landing-detail-services landing-anchor" id="services">
+    <div class="landing-shell">
+        <div class="landing-section-intro">
+            <p class="eyebrow">Services</p>
+            <h2>Service design that keeps support, records, and operations within reach.</h2>
+            <p>Instead of pushing help into a dead-end contact page, ARIA keeps service actions embedded inside the banking product.</p>
+        </div>
+
+        <div class="landing-service-grid">
+            <article class="landing-service-item">
+                <i data-lucide="message-square-more"></i>
+                <h3>Support messaging</h3>
+                <p>Customers can submit service issues directly from their account and review recent responses in context.</p>
+            </article>
+            <article class="landing-service-item">
+                <i data-lucide="folder-up"></i>
+                <h3>Document vault</h3>
+                <p>Uploaded records, previews, and statement files are stored in a single workspace alongside customer activity.</p>
+            </article>
+            <article class="landing-service-item">
+                <i data-lucide="scan-search"></i>
+                <h3>Statement search</h3>
+                <p>Search flows make it easy to move through filenames, previews, and uploaded account records quickly.</p>
+            </article>
+            <article class="landing-service-item">
+                <i data-lucide="briefcase-business"></i>
+                <h3>Employee workspace</h3>
+                <p>Operations teams have direct visibility into records, documents, and banking activity from a dedicated portal.</p>
+            </article>
+        </div>
+    </div>
+</section>
+
+<section class="landing-detail landing-detail-security landing-anchor" id="security">
+    <div class="landing-shell landing-detail-grid">
+        <div class="landing-copy">
+            <p class="eyebrow">Security</p>
+            <h2>Visibility, alerts, and account awareness across the full banking session.</h2>
+            <p>Security is presented as part of the product experience through login activity, account context, card oversight, and operational event visibility.</p>
+            <div class="landing-pill-row">
+                <span><i data-lucide="shield-check"></i> Session visibility</span>
+                <span><i data-lucide="bell-ring"></i> Alerts</span>
+                <span><i data-lucide="scroll-text"></i> Activity logs</span>
+            </div>
+        </div>
+
+        <div class="security-grid">
+            <article class="security-item">
+                <p class="eyebrow">Account Access</p>
+                <h3>Sign-in activity and role-aware entry points stay visible across customer and operations views.</h3>
+            </article>
+            <article class="security-item">
+                <p class="eyebrow">Transfer Awareness</p>
+                <h3>Transaction records, suspicious flags, and movement history remain attached to the account workflow.</h3>
+            </article>
+            <article class="security-item">
+                <p class="eyebrow">Operations Review</p>
+                <h3>Admins and staff can inspect platform activity, user records, and operational logs from a single control layer.</h3>
+            </article>
+        </div>
+    </div>
+</section>
+{% endblock %}

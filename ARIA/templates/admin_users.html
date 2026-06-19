@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+
+{% block title %}User Management | ARIA Bank{% endblock %}
+{% block page_title %}User Management{% endblock %}
+
+{% block content %}
+<section class="page-banner compact">
+    <div>
+        <p class="eyebrow">Access Management</p>
+        <h2>User directory and role controls</h2>
+    </div>
+    <div class="banner-chips">
+        <span><i data-lucide="users-round"></i>{{ users|length }} accounts</span>
+    </div>
+</section>
+
+<section class="table-panel">
+    <div class="panel-heading">
+        <div>
+            <h2>User Directory</h2>
+            <p class="panel-subtitle">Customer, staff, and admin accounts</p>
+        </div>
+    </div>
+    <div class="table-responsive">
+        <table class="table align-middle data-table-wide">
+            <thead>
+                <tr>
+                    <th>ID</th><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Account</th><th class="text-end">Balance</th><th>Change</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in users %}
+                <tr>
+                    <td>{{ row.id }}</td>
+                    <td>{{ row.full_name }}</td>
+                    <td>{{ row.email }}</td>
+                    <td><span class="badge text-bg-primary">{{ row.role }}</span></td>
+                    <td>{{ row.account_status }}</td>
+                    <td><small>{{ row.account_number or 'N/A' }}</small></td>
+                    <td class="text-end amount-cell">{% if row.balance is not none %}CAD {{ "%.2f"|format(row.balance) }}{% else %}N/A{% endif %}</td>
+                    <td>
+                        <form method="post" class="inline-form">
+                            <input type="hidden" name="user_id" value="{{ row.id }}">
+                            <select class="form-select form-select-sm" name="role">
+                                {% for role in ['customer', 'staff', 'admin'] %}
+                                <option value="{{ role }}" {% if row.role == role %}selected{% endif %}>{{ role }}</option>
+                                {% endfor %}
+                            </select>
+                            <select class="form-select form-select-sm" name="account_status">
+                                {% for status in ['Active', 'Suspended'] %}
+                                <option value="{{ status }}" {% if row.account_status == status %}selected{% endif %}>{{ status }}</option>
+                                {% endfor %}
+                            </select>
+                            <button class="btn btn-outline-primary btn-sm" type="submit"><i data-lucide="save"></i></button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}

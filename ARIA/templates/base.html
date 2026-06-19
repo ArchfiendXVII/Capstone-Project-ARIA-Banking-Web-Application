@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}ARIA Bank{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="{{ url_for('static', filename='css/styles.css', v='20260530-upload-ui') }}" rel="stylesheet">
+</head>
+<body class="{% if current_user %}app-body{% else %}public-body{% endif %} page-{{ request.endpoint|replace('_', '-') }}">
+    {% if current_user %}
+    <div class="app-shell">
+        <aside class="sidebar">
+            <a class="brand" href="{{ url_for('dashboard') if current_user.role == 'customer' else url_for('admin_dashboard') }}">
+                <span class="brand-mark">A</span>
+                <span>
+                    <strong>ARIA Bank</strong>
+                    <small>Private Digital Banking</small>
+                </span>
+            </a>
+
+            <div class="nav-scroll">
+                <nav class="nav-list">
+                    {% if current_user.role == 'customer' %}
+                    <p class="nav-section">Personal</p>
+                    <a class="nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}" href="{{ url_for('dashboard') }}"><i data-lucide="layout-dashboard"></i>Dashboard</a>
+                    <a class="nav-link {% if request.endpoint == 'transfer' %}active{% endif %}" href="{{ url_for('transfer') }}"><i data-lucide="send"></i>Transfer</a>
+                    <a class="nav-link {% if request.endpoint == 'transactions' %}active{% endif %}" href="{{ url_for('transactions') }}"><i data-lucide="receipt-text"></i>Transactions</a>
+                    <a class="nav-link {% if request.endpoint == 'profile' %}active{% endif %}" href="{{ url_for('profile') }}"><i data-lucide="user-round"></i>Profile</a>
+                    <a class="nav-link {% if request.endpoint == 'support' %}active{% endif %}" href="{{ url_for('support') }}"><i data-lucide="message-square"></i>Support</a>
+                    <a class="nav-link {% if request.endpoint in ['documents', 'statements'] %}active{% endif %}" href="{{ url_for('documents') }}"><i data-lucide="folder-up"></i>Documents</a>
+                    {% endif %}
+
+                    <p class="nav-section">Operations</p>
+                    <a class="nav-link {% if request.endpoint == 'admin_dashboard' %}active{% endif %}" href="{{ url_for('admin_dashboard') }}"><i data-lucide="building-2"></i>Admin Home</a>
+                    <a class="nav-link {% if request.endpoint == 'employee_portal' %}active{% endif %}" href="{{ url_for('employee_portal') }}"><i data-lucide="briefcase-business"></i>Employee Portal</a>
+                    {% if current_user.role == 'admin' %}
+                    <a class="nav-link {% if request.endpoint == 'admin_users' %}active{% endif %}" href="{{ url_for('admin_users') }}"><i data-lucide="users-round"></i>User Management</a>
+                    {% endif %}
+                    {% if current_user.role in ['staff', 'admin'] %}
+                    <a class="nav-link {% if request.endpoint == 'admin_transactions' %}active{% endif %}" href="{{ url_for('admin_transactions') }}"><i data-lucide="landmark"></i>All Transactions</a>
+                    <a class="nav-link {% if request.endpoint == 'audit_logs' %}active{% endif %}" href="{{ url_for('audit_logs') }}"><i data-lucide="scroll-text"></i>Activity Logs</a>
+                    {% endif %}
+                </nav>
+            </div>
+            <div class="sidebar-cta">
+                <p class="eyebrow">Priority Service</p>
+                <strong>Dedicated Support</strong>
+                <span>Direct help for transfers, access, and account operations.</span>
+            </div>
+        </aside>
+
+        <main class="main-content">
+            <header class="topbar">
+                <div>
+                    <p class="eyebrow mb-1">ARIA Digital Workspace</p>
+                    <h1>{% block page_title %}ARIA Bank{% endblock %}</h1>
+                </div>
+                <div class="topbar-actions">
+                    <button class="icon-button" type="button" aria-label="Search"><i data-lucide="search"></i></button>
+                    <button class="icon-button" type="button" aria-label="Alerts"><i data-lucide="bell"></i></button>
+                    <span class="role-badge"><i data-lucide="shield"></i>{{ current_user.role|title }}</span>
+                    <span class="user-chip">{{ current_user.full_name }}</span>
+                    <a class="btn btn-outline-light btn-sm" href="{{ url_for('logout') }}"><i data-lucide="log-out"></i>Sign Out</a>
+                </div>
+            </header>
+            <section class="content-wrap">
+    {% else %}
+    <div class="public-frame {% if request.endpoint == 'home' %}home-frame{% endif %}">
+        <header class="public-nav {% if request.endpoint == 'home' %}home-nav{% endif %}">
+            <a class="public-brand" href="{{ url_for('home') }}">
+                <span class="brand-mark">A</span>
+                <span>ARIA Bank</span>
+            </a>
+            <nav class="public-links" aria-label="Primary">
+                <a href="{{ url_for('home') }}#accounts">Accounts</a>
+                <a href="{{ url_for('home') }}#cards">Cards</a>
+                <a href="{{ url_for('home') }}#services">Services</a>
+                <a href="{{ url_for('home') }}#security">Security</a>
+            </nav>
+            <div class="public-actions">
+                <a class="btn btn-outline-light btn-sm" href="{{ url_for('login') }}"><i data-lucide="log-in"></i>Sign In</a>
+                <a class="btn btn-accent btn-sm" href="{{ url_for('register') }}"><i data-lucide="user-plus"></i>Open Account</a>
+            </div>
+        </header>
+        <main class="public-main {% if request.endpoint == 'home' %}home-main{% endif %}">
+            <section class="content-wrap public-content {% if request.endpoint == 'home' %}home-content{% endif %}">
+    {% endif %}
+
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                    <div class="flash-stack">
+                        {% for category, message in messages %}
+                        <div class="alert alert-{{ category }} mb-2">{{ message }}</div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                {% endwith %}
+
+                {% block content %}{% endblock %}
+
+            </section>
+        </main>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+    <script>
+        if (window.lucide) {
+            window.lucide.createIcons({ attrs: { width: 17, height: 17, strokeWidth: 2 } });
+        }
+    </script>
+    {% block extra_scripts %}{% endblock %}
+</body>
+</html>

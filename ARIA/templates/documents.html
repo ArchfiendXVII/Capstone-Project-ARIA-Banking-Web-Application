@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+
+{% block title %}Documents | ARIA Bank{% endblock %}
+{% block page_title %}Customer Documents{% endblock %}
+
+{% block content %}
+<section class="page-banner compact">
+    <div>
+        <p class="eyebrow">Document Vault</p>
+        <h2>Upload and manage records</h2>
+    </div>
+    <div class="banner-chips">
+        <span><i data-lucide="folder-up"></i>{{ documents|length }} files</span>
+        <span><i data-lucide="scan-search"></i>Statement search enabled</span>
+    </div>
+</section>
+
+<div class="split-layout">
+    <section class="form-panel">
+        <p class="eyebrow">Document Vault</p>
+        <h2>Upload document</h2>
+        <form method="post" enctype="multipart/form-data" class="form-stack">
+            <label>Document type
+                <select class="form-select" name="document_type">
+                    <option>Statement</option>
+                    <option>Identity</option>
+                    <option>Loan Form</option>
+                    <option>Business Record</option>
+                </select>
+            </label>
+            <div class="file-upload-field">
+                <label for="document-upload">File</label>
+                <input class="file-input-native" id="document-upload" type="file" name="document" required data-file-target="document-file-name">
+                <label class="file-input-shell" for="document-upload">
+                    <span class="file-input-trigger"><i data-lucide="paperclip"></i> Choose file</span>
+                    <span class="file-input-value" id="document-file-name">Select a statement, identity file, or business record</span>
+                </label>
+            </div>
+            <label>Description
+                <input class="form-control" name="note" placeholder="Optional note">
+            </label>
+            <button class="btn btn-accent" type="submit"><i data-lucide="upload"></i> Upload</button>
+        </form>
+    </section>
+    <section class="table-panel">
+        <div class="panel-heading">
+            <h2>My Uploaded Documents</h2>
+            <a class="btn btn-outline-primary btn-sm" href="{{ url_for('statements') }}"><i data-lucide="search"></i> Search Statements</a>
+        </div>
+        <div class="table-responsive">
+            <table class="table align-middle">
+                <thead><tr><th>Uploaded</th><th>Filename</th><th>Type</th><th>Size</th><th>Preview</th></tr></thead>
+                <tbody>
+                    {% for doc in documents %}
+                    <tr>
+                        <td>{{ doc.uploaded_at }}</td>
+                        <td>{{ doc.filename }}</td>
+                        <td>{{ doc.document_type }}</td>
+                        <td>{{ doc.file_size }} bytes</td>
+                        <td>{{ doc.content_preview }}</td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="5" class="empty-state">No documents uploaded.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        var fileInputs = document.querySelectorAll("[data-file-target]");
+
+        fileInputs.forEach(function (input) {
+            var targetId = input.getAttribute("data-file-target");
+            var target = targetId ? document.getElementById(targetId) : null;
+
+            if (!target) {
+                return;
+            }
+
+            input.addEventListener("change", function () {
+                var fileName = input.files && input.files.length ? input.files[0].name : "Select a statement, identity file, or business record";
+                target.textContent = fileName;
+            });
+        });
+    });
+</script>
+{% endblock %}

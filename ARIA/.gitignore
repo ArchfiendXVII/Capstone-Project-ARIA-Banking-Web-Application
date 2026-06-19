@@ -1,0 +1,5 @@
+.venv/
+__pycache__/
+*.pyc
+aria_bank.db
+.pytest_cache/

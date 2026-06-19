@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+
+{% block title %}Register | ARIA Bank{% endblock %}
+{% block page_title %}Customer Registration{% endblock %}
+
+{% block content %}
+<section class="auth-cinematic">
+    <aside class="auth-story">
+        <div class="auth-story-top">
+            <p class="eyebrow">ARIA Premier</p>
+            <h2>Open a more elevated banking experience.</h2>
+            <p>Create your profile to unlock transfers, account tracking, statements, and service tools in one polished account space.</p>
+        </div>
+
+        <div class="auth-chip-row">
+            <span>Fast onboarding</span>
+            <span>Unified portfolio</span>
+            <span>Premium cards</span>
+        </div>
+
+        <div class="auth-story-bottom">
+            <div class="auth-story-metrics">
+                <article><span>Onboarding</span><strong>Minutes</strong></article>
+                <article><span>Portfolio View</span><strong>Unified</strong></article>
+                <article><span>Account Access</span><strong>Instant</strong></article>
+            </div>
+
+            <div class="auth-visual-stage" aria-hidden="true">
+                <article class="auth-card auth-card-primary">
+                    <div class="auth-card-head">
+                        <span>ARIA Platinum</span>
+                        <i data-lucide="credit-card"></i>
+                    </div>
+                    <strong>**** 5698</strong>
+                    <div class="auth-card-meta">
+                        <span>Travel Rewards</span>
+                        <small>Priority Access</small>
+                    </div>
+                </article>
+
+                <article class="auth-card auth-card-secondary">
+                    <div class="auth-card-head">
+                        <span>ARIA Reserve</span>
+                        <i data-lucide="sparkles"></i>
+                    </div>
+                    <strong>**** 2481</strong>
+                    <div class="auth-card-meta">
+                        <span>Private Services</span>
+                        <small>Concierge</small>
+                    </div>
+                </article>
+
+                <article class="auth-visual-ledger">
+                    <div>
+                        <span>New account</span>
+                        <strong>Ready</strong>
+                    </div>
+                    <div>
+                        <span>Access</span>
+                        <small>Cards, transfers, support</small>
+                    </div>
+                </article>
+            </div>
+        </div>
+    </aside>
+
+    <section class="auth-form-card">
+        <p class="eyebrow">Open Account</p>
+        <h2>Create your ARIA account</h2>
+        <p class="panel-subtitle">Enter your details to create your banking profile.</p>
+        <form method="post" class="form-stack">
+            <label>Full name
+                <input class="form-control" name="full_name" required>
+            </label>
+            <label>Email
+                <input class="form-control" type="email" name="email" required>
+            </label>
+            <label>Password
+                <input class="form-control" type="password" name="password" required>
+            </label>
+            <label>Phone number
+                <input class="form-control" name="phone">
+            </label>
+            <label>Address
+                <textarea class="form-control" name="address" rows="3"></textarea>
+            </label>
+            <button class="btn btn-accent w-100" type="submit"><i data-lucide="user-plus"></i> Create Account</button>
+        </form>
+        <p class="auth-switch">Already have an account? <a href="{{ url_for('login') }}">Sign in</a></p>
+    </section>
+</section>
+{% endblock %}

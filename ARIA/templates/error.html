@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+
+{% block title %}{{ code }} | ARIA Bank{% endblock %}
+{% block page_title %}{{ code }}{% endblock %}
+
+{% block content %}
+<section class="form-panel narrow-panel text-center error-panel">
+    <p class="eyebrow">Request Unavailable</p>
+    <h2>{{ message }}</h2>
+    <p class="panel-subtitle">The requested page could not be displayed.</p>
+    <a class="btn btn-accent mt-2" href="{{ url_for('home') }}"><i data-lucide="home"></i> Back to Home</a>
+</section>
+{% endblock %}

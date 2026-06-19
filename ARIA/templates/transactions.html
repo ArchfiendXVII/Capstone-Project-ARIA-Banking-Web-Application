@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block title %}Transactions | ARIA Bank{% endblock %}
+{% block page_title %}Transaction History{% endblock %}
+
+{% block content %}
+<section class="page-banner compact">
+    <div>
+        <p class="eyebrow">History</p>
+        <h2>Transaction records</h2>
+    </div>
+    <div class="banner-chips">
+        <span><i data-lucide="credit-card"></i>{{ account.account_number }}</span>
+        <span><i data-lucide="database"></i>{{ transactions|length }} rows</span>
+    </div>
+</section>
+
+<section class="table-panel">
+    <div class="panel-heading">
+        <div>
+            <h2>{{ account.full_name }} Transactions</h2>
+            <p class="panel-subtitle">{{ account.account_number }}</p>
+        </div>
+        <form class="search-form" method="get">
+            <input class="form-control form-control-sm" name="q" value="{{ search }}" placeholder="Search description or status">
+            <button class="btn btn-outline-primary btn-sm" type="submit"><i data-lucide="search"></i></button>
+        </form>
+    </div>
+    <div class="table-responsive">
+        <table class="table align-middle">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Sender</th>
+                    <th>Recipient</th>
+                    <th>Description</th>
+                    <th class="text-end">Amount</th>
+                    <th>Status</th>
+                    <th>Flag</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for tx in transactions %}
+                <tr>
+                    <td>{{ tx.created_at }}</td>
+                    <td>{{ tx.sender_name }}<br><small>{{ tx.sender_number }}</small></td>
+                    <td>{{ tx.recipient_name }}<br><small>{{ tx.recipient_number }}</small></td>
+                    <td>{{ tx.description }}</td>
+                    <td class="text-end amount-cell">CAD {{ "%.2f"|format(tx.amount) }}</td>
+                    <td><span class="badge text-bg-success">{{ tx.status }}</span></td>
+                    <td>{% if tx.flagged %}<span class="badge text-bg-danger">Suspicious</span>{% else %}<span class="badge text-bg-secondary">None</span>{% endif %}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="7" class="empty-state">No matching transactions.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}

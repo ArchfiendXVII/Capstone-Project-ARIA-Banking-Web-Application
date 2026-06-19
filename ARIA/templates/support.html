@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+
+{% block title %}Support | ARIA Bank{% endblock %}
+{% block page_title %}Customer Support{% endblock %}
+
+{% block content %}
+<section class="page-banner compact">
+    <div>
+        <p class="eyebrow">Service Desk</p>
+        <h2>Support and issue tracking</h2>
+    </div>
+    <div class="banner-chips">
+        <span><i data-lucide="message-circle"></i>{{ messages|length }} messages</span>
+    </div>
+</section>
+
+<div class="split-layout">
+    <section class="form-panel">
+        <p class="eyebrow">Support Center</p>
+        <h2>Send a support message</h2>
+        <form method="post" class="form-stack">
+            <label>Subject
+                <input class="form-control" name="subject" placeholder="Transfer issue" required>
+            </label>
+            <label>Message
+                <textarea class="form-control" name="message" rows="6" placeholder="Describe the issue" required></textarea>
+            </label>
+            <button class="btn btn-accent" type="submit"><i data-lucide="message-square"></i> Submit Message</button>
+        </form>
+    </section>
+    <section class="table-panel">
+        <div class="panel-heading">
+            <h2>My Support Messages</h2>
+        </div>
+        <div class="table-responsive">
+            <table class="table align-middle">
+                <thead><tr><th>Date</th><th>Subject</th><th>Message</th><th>Status</th></tr></thead>
+                <tbody>
+                    {% for message in messages %}
+                    <tr>
+                        <td>{{ message.created_at }}</td>
+                        <td>{{ message.subject }}</td>
+                        <td>{{ message.message }}</td>
+                        <td><span class="badge text-bg-warning">{{ message.status }}</span></td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="4" class="empty-state">No support messages yet.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+</div>
+{% endblock %}

@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+
+{% block title %}Customer Dashboard | ARIA Bank{% endblock %}
+{% block page_title %}Customer Dashboard{% endblock %}
+
+{% block content %}
+<section class="page-banner">
+    <div>
+        <p class="eyebrow">Portfolio Overview</p>
+        <h2>Welcome back, {{ account.full_name.split(' ')[0] }}.</h2>
+        <p class="panel-subtitle">Your core banking activity is live across transfers, statements, and account services.</p>
+    </div>
+    <div class="banner-chips">
+        <span><i data-lucide="wallet"></i>{{ account.account_type }}</span>
+        <span><i data-lucide="banknote"></i>CAD {{ "%.2f"|format(account.balance) }}</span>
+        <span><i data-lucide="activity"></i>{{ transactions|length }} recent entries</span>
+    </div>
+</section>
+
+<section class="account-hero">
+    <div class="balance-panel">
+        <p class="eyebrow">Available Balance</p>
+        <strong>CAD {{ "%.2f"|format(account.balance) }}</strong>
+        <span>{{ account.account_type }}</span>
+        <small>{{ account.account_number }}</small>
+    </div>
+    <div class="quick-actions">
+        <a class="quick-action" href="{{ url_for('transfer') }}"><span><i data-lucide="send"></i> New transfer</span><i data-lucide="chevron-right"></i></a>
+        <a class="quick-action" href="{{ url_for('transactions') }}"><span><i data-lucide="receipt-text"></i> Transaction history</span><i data-lucide="chevron-right"></i></a>
+        <a class="quick-action" href="{{ url_for('documents') }}"><span><i data-lucide="folder-up"></i> Document vault</span><i data-lucide="chevron-right"></i></a>
+        <a class="quick-action" href="{{ url_for('support') }}"><span><i data-lucide="message-square"></i> Message support</span><i data-lucide="chevron-right"></i></a>
+    </div>
+</section>
+
+<section class="metric-grid">
+    <div class="metric-card">
+        <span>Account Holder</span>
+        <strong>{{ account.full_name }}</strong>
+        <small>{{ account.email }}</small>
+    </div>
+    <div class="metric-card">
+        <span>Account Type</span>
+        <strong>{{ account.account_type }}</strong>
+        <small>Primary banking account</small>
+    </div>
+    <div class="metric-card">
+        <span>Recent Activity</span>
+        <strong>{{ transactions|length }}</strong>
+        <small>Most recent entries loaded</small>
+    </div>
+    <div class="metric-card">
+        <span>Status</span>
+        <strong>Active</strong>
+        <small>Digital services available</small>
+    </div>
+</section>
+
+<section class="table-panel mt-4">
+    <div class="panel-heading">
+        <h2>Recent Transactions</h2>
+        <a class="btn btn-outline-primary btn-sm" href="{{ url_for('transactions') }}"><i data-lucide="receipt-text"></i> View All</a>
+    </div>
+    <div class="table-responsive">
+        <table class="table align-middle">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Direction</th>
+                    <th>Counterparty</th>
+                    <th>Description</th>
+                    <th class="text-end">Amount</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for tx in transactions %}
+                {% set outgoing = tx.sender_number == account.account_number %}
+                <tr>
+                    <td>{{ tx.created_at }}</td>
+                    <td><span class="badge {{ 'text-bg-warning' if outgoing else 'text-bg-success' }}">{{ 'Outgoing' if outgoing else 'Incoming' }}</span></td>
+                    <td>{{ tx.recipient_name if outgoing else tx.sender_name }}</td>
+                    <td>{{ tx.description }}</td>
+                    <td class="text-end {{ 'text-danger' if outgoing else 'text-success' }}">{{ '-' if outgoing else '+' }}CAD {{ "%.2f"|format(tx.amount) }}</td>
+                    <td>{{ tx.status }}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="6" class="empty-state">No transactions yet.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}

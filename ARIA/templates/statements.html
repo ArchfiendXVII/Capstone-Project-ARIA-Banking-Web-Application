@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block title %}Statement Search | ARIA Bank{% endblock %}
+{% block page_title %}Statement Search{% endblock %}
+
+{% block content %}
+<section class="page-banner compact">
+    <div>
+        <p class="eyebrow">Statements</p>
+        <h2>Search statement history</h2>
+    </div>
+    <div class="banner-chips">
+        <span><i data-lucide="search-check"></i>Query: {{ q or "All records" }}</span>
+    </div>
+</section>
+
+<section class="table-panel">
+    <div class="panel-heading">
+        <div>
+            <h2>Search uploaded statements</h2>
+            <p class="panel-subtitle">Search by filename, type, or statement details</p>
+        </div>
+        <form class="search-form wide" method="get">
+            <input class="form-control form-control-sm" name="q" value="{{ q }}" placeholder="Search filename or preview">
+            <button class="btn btn-outline-primary btn-sm" type="submit"><i data-lucide="search"></i></button>
+        </form>
+    </div>
+    <div class="table-responsive">
+        <table class="table align-middle">
+            <thead><tr><th>Uploaded</th><th>Customer</th><th>Filename</th><th>Type</th><th>Preview</th></tr></thead>
+            <tbody>
+                {% for doc in documents %}
+                <tr>
+                    <td>{{ doc.uploaded_at }}</td>
+                    <td>{{ doc.full_name }}<br><small>{{ doc.email }}</small></td>
+                    <td>{{ doc.filename }}</td>
+                    <td>{{ doc.document_type }}</td>
+                    <td>{{ doc.content_preview }}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="5" class="empty-state">No matching documents.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}

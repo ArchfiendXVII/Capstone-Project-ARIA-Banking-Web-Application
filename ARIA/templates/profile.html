@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block title %}Profile | ARIA Bank{% endblock %}
+{% block page_title %}Profile{% endblock %}
+
+{% block content %}
+<section class="page-banner compact">
+    <div>
+        <p class="eyebrow">Account Settings</p>
+        <h2>Profile and identity details</h2>
+    </div>
+    <div class="banner-chips">
+        <span><i data-lucide="user-round"></i>{{ user.full_name }}</span>
+        <span><i data-lucide="shield"></i>{{ user.account_status }}</span>
+    </div>
+</section>
+
+<div class="split-layout">
+    <section class="form-panel">
+        <p class="eyebrow">Account Details</p>
+        <h2>Personal information</h2>
+        <form method="post" class="form-stack">
+            <label>Full name
+                <input class="form-control" name="full_name" value="{{ user.full_name }}" required>
+            </label>
+            <label>Email
+                <input class="form-control" value="{{ user.email }}" disabled>
+            </label>
+            <label>Phone
+                <input class="form-control" name="phone" value="{{ user.phone }}">
+            </label>
+            <label>Address
+                <textarea class="form-control" name="address" rows="3">{{ user.address }}</textarea>
+            </label>
+            <input type="hidden" name="role" value="{{ user.role }}">
+            <button class="btn btn-accent" type="submit"><i data-lucide="save"></i> Save Profile</button>
+        </form>
+    </section>
+    <aside class="evidence-panel">
+        <p class="eyebrow">Overview</p>
+        <h2>Banking Profile</h2>
+        <dl class="data-list">
+            <dt>Account number</dt><dd>{{ account.account_number }}</dd>
+            <dt>Role</dt><dd>{{ user.role }}</dd>
+            <dt>Status</dt><dd>{{ user.account_status }}</dd>
+            <dt>Created</dt><dd>{{ user.created_at }}</dd>
+        </dl>
+    </aside>
+</div>
+{% endblock %}
