@@ -510,7 +510,7 @@ def transactions():
     if not account:
         abort(404)
 
-    sql = f"""
+    sql = """
         SELECT t.*, sa.account_number AS sender_number, ra.account_number AS recipient_number,
                su.full_name AS sender_name, ru.full_name AS recipient_name
         FROM transactions t
@@ -518,17 +518,19 @@ def transactions():
         LEFT JOIN accounts ra ON ra.id = t.recipient_account_id
         LEFT JOIN users su ON su.id = sa.user_id
         LEFT JOIN users ru ON ru.id = ra.user_id
-        WHERE (t.sender_account_id = {account['id']} OR t.recipient_account_id = {account['id']})
+        WHERE (t.sender_account_id = ? OR t.recipient_account_id = ?)
     """
+    params = [account["id"], account["id"]]
     if search:
-        sql += f" AND (t.description LIKE '%{search}%' OR t.status LIKE '%{search}%')"
+        sql += " AND (t.description LIKE ? OR t.status LIKE ?)"
+        like_term = f"%{search}%"
+        params.extend([like_term, like_term])
     sql += " ORDER BY t.created_at DESC"
-    rows = query_all(sql)
+    rows = query_all(sql, tuple(params))
 
     if target_user_id != user["id"]:
         log_event(user["id"], "UNAUTHORIZED_ACCESS_ATTEMPT", f"Transaction history view user_id={target_user_id}", "Medium")
     return render_template("transactions.html", transactions=rows, search=search, account=account)
-
 
 @app.route("/profile", methods=("GET", "POST"))
 @login_required
