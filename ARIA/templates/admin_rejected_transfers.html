@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+
+{% block title %}Rejected Transfers | ARIA Bank{% endblock %}
+{% block page_title %}Rejected Transfer Log{% endblock %}
+
+{% block content %}
+<section class="page-banner compact">
+    <div>
+        <p class="eyebrow">Transfer Security</p>
+        <h2>Rejected transfer attempts</h2>
+    </div>
+    <div class="banner-chips">
+        <span><i data-lucide="shield-alert"></i>{{ rejected_transfers|length }} recent rejections</span>
+    </div>
+</section>
+
+<section class="table-panel">
+    <div class="panel-heading">
+        <div>
+            <h2>Rejected Attempts</h2>
+            <p class="panel-subtitle">Invalid or blocked transfer submissions with reason codes and request context</p>
+        </div>
+    </div>
+    <div class="table-responsive">
+        <table class="table align-middle">
+            <thead>
+                <tr>
+                    <th>Timestamp</th>
+                    <th>User</th>
+                    <th>Sender</th>
+                    <th>Recipient Lookup</th>
+                    <th class="text-end">Amount</th>
+                    <th>Reason</th>
+                    <th>Idempotency Key</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in rejected_transfers %}
+                <tr>
+                    <td>{{ row.created_at }}</td>
+                    <td>{{ row.full_name }}<br><small>{{ row.email }}</small></td>
+                    <td>{{ row.sender_account_number }}</td>
+                    <td>{{ row.recipient_lookup or 'N/A' }}</td>
+                    <td class="text-end amount-cell">
+                        {% if row.amount_cents is not none %}CAD {{ "%.2f"|format(row.amount_cents / 100) }}{% else %}N/A{% endif %}
+                    </td>
+                    <td><span class="badge text-bg-warning">{{ row.reason_code }}</span></td>
+                    <td><small>{{ row.idempotency_key or 'Missing' }}</small></td>
+                </tr>
+                {% else %}
+                <tr><td colspan="7" class="empty-state">No rejected transfer attempts recorded.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}

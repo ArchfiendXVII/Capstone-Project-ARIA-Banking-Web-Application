@@ -39,6 +39,7 @@
                     {% endif %}
                     {% if current_user.role in ['staff', 'admin'] %}
                     <a class="nav-link {% if request.endpoint == 'admin_transactions' %}active{% endif %}" href="{{ url_for('admin_transactions') }}"><i data-lucide="landmark"></i>All Transactions</a>
+                    <a class="nav-link {% if request.endpoint == 'admin_rejected_transfers' %}active{% endif %}" href="{{ url_for('admin_rejected_transfers') }}"><i data-lucide="shield-alert"></i>Rejected Transfers</a>
                     <a class="nav-link {% if request.endpoint == 'audit_logs' %}active{% endif %}" href="{{ url_for('audit_logs') }}"><i data-lucide="scroll-text"></i>Activity Logs</a>
                     {% endif %}
                 </nav>

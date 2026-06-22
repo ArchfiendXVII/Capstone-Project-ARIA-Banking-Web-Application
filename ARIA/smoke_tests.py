@@ -1,6 +1,8 @@
+import os
+import re
 from io import BytesIO
 
-from app import app
+from app import DATABASE, app, get_db, init_db
 
 
 def assert_ok(client, path):
@@ -24,6 +26,12 @@ def login(client, email, password):
     assert b"ARIA" in response.data
 
 
+def extract_idempotency_key(html: bytes) -> str:
+    match = re.search(rb'name="idempotency_key" value="([^"]+)"', html)
+    assert match, "idempotency key hidden field missing from transfer form"
+    return match.group(1).decode()
+
+
 def run():
     app.config.update(TESTING=True)
     with app.test_client() as client:
@@ -44,12 +52,15 @@ def run():
         ]:
             assert_ok(client, path)
 
+        transfer_page = client.get("/transfer")
+        idempotency_key = extract_idempotency_key(transfer_page.data)
         response = client.post(
             "/transfer",
             data={
                 "recipient": "sara@aria.local",
                 "amount": "10",
                 "description": "Smoke test transfer",
+                "idempotency_key": idempotency_key,
             },
             follow_redirects=True,
         )
@@ -88,6 +99,7 @@ def run():
             "/admin",
             "/admin/users",
             "/admin/transactions",
+            "/admin/rejected-transfers",
             "/admin/audit-logs",
             "/employee-portal",
         ]:

@@ -19,6 +19,7 @@
         <p class="eyebrow">Payments</p>
         <h2>Send a transfer</h2>
         <form method="post" class="form-stack">
+            <input type="hidden" name="idempotency_key" value="{{ idempotency_key }}">
             <label>Recipient account or email
                 <input class="form-control" name="recipient" list="recipients" placeholder="recipient@email.com" required>
                 <datalist id="recipients">
@@ -42,6 +43,7 @@
         <h2>Before you submit</h2>
         <ul class="evidence-list">
             <li>Confirm the recipient account or email address.</li>
+            <li>Each submission uses a one-time idempotency key to block duplicate payments.</li>
             <li>Transfers update balances immediately after submission.</li>
             <li>Use the description field to add a payment memo.</li>
             <li>Completed transfers appear in transaction history.</li>
