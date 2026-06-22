@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import os
-import secrets
 import sqlite3
 from datetime import datetime
 from functools import wraps
@@ -17,8 +16,6 @@ from flask import (
     session,
     url_for,
 )
-
-from transfer_service import process_transfer
 
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -159,7 +156,6 @@ def init_db() -> None:
             account_number TEXT NOT NULL UNIQUE,
             account_type TEXT NOT NULL,
             balance REAL NOT NULL DEFAULT 0,
-            balance_cents INTEGER NOT NULL DEFAULT 0 CHECK (balance_cents >= 0),
             created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (user_id) REFERENCES users (id)
         );
@@ -169,44 +165,10 @@ def init_db() -> None:
             sender_account_id INTEGER,
             recipient_account_id INTEGER,
             amount REAL NOT NULL,
-            amount_cents INTEGER,
             description TEXT,
             status TEXT NOT NULL DEFAULT 'Completed',
             flagged INTEGER NOT NULL DEFAULT 0,
             created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (sender_account_id) REFERENCES accounts (id),
-            FOREIGN KEY (recipient_account_id) REFERENCES accounts (id)
-        );
-
-        CREATE TABLE IF NOT EXISTS transfer_idempotency (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            sender_account_id INTEGER NOT NULL,
-            idempotency_key TEXT NOT NULL,
-            recipient_account_id INTEGER,
-            amount_cents INTEGER NOT NULL,
-            description TEXT,
-            status TEXT NOT NULL,
-            transaction_id INTEGER,
-            created_at TEXT NOT NULL,
-            FOREIGN KEY (sender_account_id) REFERENCES accounts (id),
-            FOREIGN KEY (recipient_account_id) REFERENCES accounts (id),
-            FOREIGN KEY (transaction_id) REFERENCES transactions (id),
-            UNIQUE (sender_account_id, idempotency_key)
-        );
-
-        CREATE TABLE IF NOT EXISTS rejected_transfers (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            sender_account_id INTEGER NOT NULL,
-            recipient_lookup TEXT,
-            recipient_account_id INTEGER,
-            amount_cents INTEGER,
-            idempotency_key TEXT,
-            reason_code TEXT NOT NULL,
-            status TEXT NOT NULL DEFAULT 'rejected',
-            request_context TEXT,
-            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (user_id) REFERENCES users (id),
             FOREIGN KEY (sender_account_id) REFERENCES accounts (id),
             FOREIGN KEY (recipient_account_id) REFERENCES accounts (id)
         );
@@ -246,71 +208,8 @@ def init_db() -> None:
         """
     )
     db.commit()
-    migrate_transfer_security_schema()
     seed_data()
     seed_banking_content()
-
-
-def migrate_transfer_security_schema() -> None:
-    db = get_db()
-    account_columns = {row[1] for row in db.execute("PRAGMA table_info(accounts)").fetchall()}
-    if "balance_cents" not in account_columns:
-        db.execute("ALTER TABLE accounts ADD COLUMN balance_cents INTEGER NOT NULL DEFAULT 0")
-        db.execute(
-            """
-            UPDATE accounts
-            SET balance_cents = CAST(ROUND(balance * 100) AS INTEGER)
-            """
-        )
-
-    transaction_columns = {row[1] for row in db.execute("PRAGMA table_info(transactions)").fetchall()}
-    if "amount_cents" not in transaction_columns:
-        db.execute("ALTER TABLE transactions ADD COLUMN amount_cents INTEGER")
-        db.execute(
-            """
-            UPDATE transactions
-            SET amount_cents = CAST(ROUND(amount * 100) AS INTEGER)
-            WHERE amount_cents IS NULL
-            """
-        )
-
-    db.executescript(
-        """
-        CREATE TABLE IF NOT EXISTS transfer_idempotency (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            sender_account_id INTEGER NOT NULL,
-            idempotency_key TEXT NOT NULL,
-            recipient_account_id INTEGER,
-            amount_cents INTEGER NOT NULL,
-            description TEXT,
-            status TEXT NOT NULL,
-            transaction_id INTEGER,
-            created_at TEXT NOT NULL,
-            FOREIGN KEY (sender_account_id) REFERENCES accounts (id),
-            FOREIGN KEY (recipient_account_id) REFERENCES accounts (id),
-            FOREIGN KEY (transaction_id) REFERENCES transactions (id),
-            UNIQUE (sender_account_id, idempotency_key)
-        );
-
-        CREATE TABLE IF NOT EXISTS rejected_transfers (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            sender_account_id INTEGER NOT NULL,
-            recipient_lookup TEXT,
-            recipient_account_id INTEGER,
-            amount_cents INTEGER,
-            idempotency_key TEXT,
-            reason_code TEXT NOT NULL,
-            status TEXT NOT NULL DEFAULT 'rejected',
-            request_context TEXT,
-            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (user_id) REFERENCES users (id),
-            FOREIGN KEY (sender_account_id) REFERENCES accounts (id),
-            FOREIGN KEY (recipient_account_id) REFERENCES accounts (id)
-        );
-        """
-    )
-    db.commit()
 
 
 def seed_data() -> None:
@@ -334,32 +233,26 @@ def seed_data() -> None:
     )
 
     accounts = [
-        (1, "ARIA-1000-2401-9001", "Everyday Chequing", 4500.00, 450_000),
-        (2, "ARIA-1000-2401-9002", "Everyday Chequing", 8200.00, 820_000),
-        (3, "ARIA-2000-8800-3120", "Business Operating", 25000.00, 2_500_000),
+        (1, "ARIA-1000-2401-9001", "Everyday Chequing", 4500.00),
+        (2, "ARIA-1000-2401-9002", "Everyday Chequing", 8200.00),
+        (3, "ARIA-2000-8800-3120", "Business Operating", 25000.00),
     ]
     db.executemany(
-        """
-        INSERT INTO accounts (user_id, account_number, account_type, balance, balance_cents)
-        VALUES (?, ?, ?, ?, ?)
-        """,
+        "INSERT INTO accounts (user_id, account_number, account_type, balance) VALUES (?, ?, ?, ?)",
         accounts,
     )
 
     transactions = [
-        (1, 2, 250.00, 25_000, "Rent share reimbursement", "Completed", 0),
-        (2, 1, 75.50, 7_550, "Dinner transfer", "Completed", 0),
-        (3, 1, 1200.00, 120_000, "Vendor payment", "Completed", 1),
-        (1, 3, 315.25, 31_525, "Consulting invoice", "Completed", 0),
-        (2, 3, 50.00, 5_000, "Subscription payment", "Completed", 0),
+        (1, 2, 250.00, "Rent share reimbursement", "Completed", 0),
+        (2, 1, 75.50, "Dinner transfer", "Completed", 0),
+        (3, 1, 1200.00, "Vendor payment", "Completed", 1),
+        (1, 3, 315.25, "Consulting invoice", "Completed", 0),
+        (2, 3, 50.00, "Subscription payment", "Completed", 0),
     ]
     db.executemany(
         """
-        INSERT INTO transactions (
-            sender_account_id, recipient_account_id, amount, amount_cents,
-            description, status, flagged
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO transactions (sender_account_id, recipient_account_id, amount, description, status, flagged)
+        VALUES (?, ?, ?, ?, ?, ?)
         """,
         transactions,
     )
@@ -464,8 +357,8 @@ def register():
             account_number = f"ARIA-NEW-{1000 + user_id}-{9000 + user_id}"
             db.execute(
                 """
-                INSERT INTO accounts (user_id, account_number, account_type, balance, balance_cents)
-                VALUES (?, ?, 'Everyday Chequing', 100.00, 10000)
+                INSERT INTO accounts (user_id, account_number, account_type, balance)
+                VALUES (?, ?, 'Everyday Chequing', 100.00)
                 """,
                 (user_id, account_number),
             )
@@ -557,36 +450,54 @@ def transfer():
         (user["id"],),
     )
 
-    idempotency_key = secrets.token_urlsafe(32)
-
     if request.method == "POST":
-        result = process_transfer(
-            get_db(),
-            user_id=user["id"],
-            sender_account_id=sender_account["id"],
-            sender_status=user["account_status"],
-            recipient_lookup=request.form.get("recipient", "").strip(),
-            amount_raw=request.form.get("amount", "0").strip(),
-            description=request.form.get("description", "").strip(),
-            idempotency_key=request.form.get("idempotency_key"),
-            request_context={
-                "ip_address": request.remote_addr,
-                "user_agent": request.headers.get("User-Agent"),
-                "path": request.path,
-                "method": request.method,
-            },
+        recipient_lookup = request.form.get("recipient", "").strip()
+        description = request.form.get("description", "").strip()
+        amount_raw = request.form.get("amount", "0").strip()
+
+        try:
+            amount = float(amount_raw)
+        except ValueError:
+            amount = 0
+
+        recipient = query_one(
+            """
+            SELECT accounts.*, users.email, users.full_name
+            FROM accounts
+            JOIN users ON users.id = accounts.user_id
+            WHERE users.email = ? OR accounts.account_number = ?
+            """,
+            (recipient_lookup, recipient_lookup),
         )
-        flash_level = "success" if result.success else "danger"
-        flash(result.message, flash_level)
-        if result.success:
+
+        if not recipient:
+            flash("Recipient account was not found.", "danger")
+        elif amount <= 0:
+            flash("Enter a positive transfer amount.", "danger")
+        elif amount > sender_account["balance"]:
+            flash("Insufficient funds for this transfer.", "danger")
+        else:
+            db = get_db()
+            db.execute("UPDATE accounts SET balance = balance - ? WHERE id = ?", (amount, sender_account["id"]))
+            db.execute("UPDATE accounts SET balance = balance + ? WHERE id = ?", (amount, recipient["id"]))
+            db.execute(
+                """
+                INSERT INTO transactions (sender_account_id, recipient_account_id, amount, description, status)
+                VALUES (?, ?, ?, ?, 'Completed')
+                """,
+                (sender_account["id"], recipient["id"], amount, description),
+            )
+            db.commit()
+            log_event(
+                user["id"],
+                "TRANSFER_CREATED",
+                f"Transfer of CAD {amount:.2f} sent to {recipient['email']}. Note: {description}",
+                "Medium" if amount >= 1000 else "Low",
+            )
+            flash("Transfer completed.", "success")
             return redirect(url_for("transactions"))
 
-    return render_template(
-        "transfer.html",
-        account=sender_account,
-        recipients=recipients,
-        idempotency_key=idempotency_key,
-    )
+    return render_template("transfer.html", account=sender_account, recipients=recipients)
 
 
 @app.route("/transactions")
@@ -626,25 +537,24 @@ def transactions():
 def profile():
     user = current_user()
     account = get_user_account(user["id"])
-
     if request.method == "POST":
         full_name = request.form.get("full_name", "").strip()
         phone = request.form.get("phone", "").strip()
         address = request.form.get("address", "").strip()
-        role = request.form.get("role", user["role"]).strip()
+        if request.form.get("role"):
+            log_event(user["id"], "SUSPICIOUS_ROLE_SUBMISSION", f"Customer submitted role parameter: {request.form.get('role')}", "High")
         db = get_db()
         db.execute(
             """
-            UPDATE users SET full_name = ?, phone = ?, address = ?, role = ?
+            UPDATE users SET full_name = ?, phone = ?, address = ?
             WHERE id = ?
             """,
-            (full_name, phone, address, role, user["id"]),
+            (full_name, phone, address, user["id"]),
         )
         db.commit()
         log_event(user["id"], "PROFILE_UPDATED", "Customer profile updated.", "Low")
         flash("Profile updated.", "success")
         return redirect(url_for("profile"))
-
     return render_template("profile.html", user=user, account=account)
 
 
@@ -721,18 +631,21 @@ def documents():
 def statements():
     user = current_user()
     q = request.args.get("q", "")
-    owner = request.args.get("user_id", user["id"])
-    sql = f"""
+    owner = request.args.get("user_id", user["id"], type=int)
+    sql = """
         SELECT customer_documents.*, users.full_name, users.email
         FROM customer_documents
         JOIN users ON users.id = customer_documents.user_id
-        WHERE customer_documents.user_id = {owner}
+        WHERE customer_documents.user_id = ?
     """
+    params = [owner]
     if q:
-        sql += f" AND (filename LIKE '%{q}%' OR content_preview LIKE '%{q}%' OR document_type LIKE '%{q}%')"
+        sql += " AND (filename LIKE ? OR content_preview LIKE ? OR document_type LIKE ?)"
+        like_term = f"%{q}%"
+        params.extend([like_term, like_term, like_term])
     sql += " ORDER BY uploaded_at DESC"
-    docs = query_all(sql)
-    if str(owner) != str(user["id"]):
+    docs = query_all(sql, tuple(params))
+    if owner != user["id"]:
         log_event(user["id"], "UNAUTHORIZED_ACCESS_ATTEMPT", f"Statement search viewed user_id={owner}", "Medium")
     return render_template("statements.html", documents=docs, q=q, owner=owner)
 
@@ -743,7 +656,7 @@ def employee_portal():
     user = current_user()
     if user["role"] == "customer":
         log_event(user["id"], "EMPLOYEE_PORTAL_VIEW", "Employee portal viewed by customer account.", "High")
-
+        abort(403)
     users = query_all(
         """
         SELECT users.id, users.full_name, users.email, users.role, users.account_status,
@@ -771,7 +684,7 @@ def admin_dashboard():
     user = current_user()
     if user["role"] == "customer":
         log_event(user["id"], "ADMIN_DASHBOARD_VIEW", "Admin dashboard viewed by customer account.", "High")
-
+        abort(403)
     stats = {
         "users": query_one("SELECT COUNT(*) AS count FROM users")["count"],
         "transactions": query_one("SELECT COUNT(*) AS count FROM transactions")["count"],
@@ -875,25 +788,6 @@ def audit_logs():
         """
     )
     return render_template("audit_logs.html", audit_logs=rows)
-
-
-@app.route("/admin/rejected-transfers")
-@staff_or_admin_required
-def admin_rejected_transfers():
-    rows = query_all(
-        """
-        SELECT rejected_transfers.*, users.full_name, users.email,
-               sa.account_number AS sender_account_number,
-               ra.account_number AS recipient_account_number
-        FROM rejected_transfers
-        JOIN users ON users.id = rejected_transfers.user_id
-        JOIN accounts sa ON sa.id = rejected_transfers.sender_account_id
-        LEFT JOIN accounts ra ON ra.id = rejected_transfers.recipient_account_id
-        ORDER BY rejected_transfers.created_at DESC
-        LIMIT 200
-        """
-    )
-    return render_template("admin_rejected_transfers.html", rejected_transfers=rows)
 
 
 @app.errorhandler(403)
