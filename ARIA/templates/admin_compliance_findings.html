@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% from "compliance_macros.html" import help_icon, verdict_badge, evidence_block %}
+
+{% block title %}Security Findings | ARIA Bank{% endblock %}
+{% block page_title %}Security Findings Register{% endblock %}
+
+{% block content %}
+{% include "compliance_nav.html" %}
+
+<section class="page-banner compact">
+    <div>
+        <p class="eyebrow">Control register</p>
+        <h2>Security findings register</h2>
+        <p class="panel-subtitle">
+            Each item is a tracked security control with plain-English risk, verdict, and presented evidence (file, route, or database location).
+            {% if scan %}From scan #{{ scan.id }} ({{ scan.scan_timestamp }}).{% endif %}
+        </p>
+    </div>
+    <div class="banner-chips">
+        <span><i data-lucide="help-circle"></i>Hover <strong>?</strong> for explanations</span>
+    </div>
+</section>
+
+<section class="compliance-legend table-panel p-3 mb-4">
+    <strong>Verdict legend</strong>
+    <div class="legend-chips mt-2">
+        {% for vlabel, vtext in verdict_help.items() %}
+        <span class="legend-item">{{ verdict_badge(vlabel) }} {{ help_icon(vtext, vlabel) }}</span>
+        {% endfor %}
+    </div>
+</section>
+
+{% if verdicts %}
+<div class="findings-list">
+    {% for v in verdicts %}
+    {% set c = controls.get(v.control_id, {}) %}
+    <article class="finding-card table-panel {% if v.verdict == 'Non-Compliant' %}finding-bad{% elif v.verdict == 'Compliant' %}finding-ok{% else %}finding-warn{% endif %}">
+        <header class="finding-header">
+            <div>
+                <h3 class="finding-title">{{ v.title or c.get('title', 'Unknown') }}</h3>
+                <p class="finding-subtitle">{{ c.get('claim', '') }}</p>
+            </div>
+            <div class="finding-badges">
+                {{ verdict_badge(v.verdict) }}
+                <span class="badge text-bg-secondary">{{ c.get('priority', '—')|title }} priority</span>
+                <span class="badge text-bg-dark">{{ c.get('risk', '—') }} risk</span>
+            </div>
+        </header>
+
+        <div class="finding-body">
+            <div class="finding-col">
+                <h4>What this control means {{ help_icon("The security claim states what the application should enforce. The description explains real-world risk if it fails.", "Control meaning") }}</h4>
+                <p><strong>Should enforce:</strong> {{ c.get('claim', '—') }}</p>
+                <p class="finding-desc">{{ c.get('description', '') }}</p>
+            </div>
+            <div class="finding-col">
+                <h4>Assessment</h4>
+                <ul class="finding-meta-list">
+                    <li><strong>Confidence:</strong> {{ '%.0f'|format(v.score * 100) if v.score is not none else '—' }}% {{ help_icon("Weighted score from automated check quality and completeness.", "Score") }}</li>
+                    <li><strong>Tests performed:</strong>
+                        {% for item in v.evidence_items %}
+                        {{ item.get('test_name', 'Check') }}{% if not loop.last %}; {% endif %}
+                        {% else %}—{% endfor %}
+                    </li>
+                    <li><strong>Standards:</strong> {{ v.parsed_evidence.standards|join(', ') if v.parsed_evidence.standards else c.get('standard_refs', [])|join(', ') }}</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="finding-evidence-open">
+            <h4>Evidence ({{ v.evidence_items|length }} test{{ 's' if v.evidence_items|length != 1 else '' }})</h4>
+            {% if v.evidence_items %}
+            <div class="evidence-list">
+                {% for item in v.evidence_items %}
+                {{ evidence_block(item) }}
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="empty-state">No detailed evidence — run a new compliance scan.</p>
+            {% endif %}
+        </div>
+    </article>
+    {% endfor %}
+</div>
+{% else %}
+<section class="table-panel p-4 empty-state">
+    <p>No findings yet. <a href="{{ url_for('compliance.admin_compliance') }}">Run a compliance scan</a> to populate the register.</p>
+</section>
+{% endif %}
+{% endblock %}
+
+{% block extra_scripts %}
+<script>if (window.lucide) window.lucide.createIcons();</script>
+{% endblock %}

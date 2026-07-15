@@ -1,0 +1,663 @@
+{% extends "base.html" %}
+{% from "compliance_macros.html" import help_icon, evidence_block, verdict_badge %}
+
+{% block title %}Investigation | Compliance | ARIA Bank{% endblock %}
+{% block page_title %}Compliance Investigation{% endblock %}
+
+{% block content %}
+{% include "compliance_nav.html" %}
+
+{% if scan_ok %}
+<section class="alert alert-success">
+    Scan #{{ scan_ok }} completed. Full investigation trace saved below.
+    {% if request.args.get('report_id') %}
+    <a href="{{ url_for('compliance.admin_compliance_report_detail', report_id=request.args.get('report_id')) }}">View gap analysis report</a>
+    {% endif %}
+</section>
+{% endif %}
+{% if scan_error %}
+<section class="alert alert-danger">{{ scan_error }}</section>
+{% endif %}
+
+<section class="page-banner compact investigation-banner">
+    <div>
+        <p class="eyebrow">Multi-agent pipeline</p>
+        <h2>Investigation workspace</h2>
+        <p class="panel-subtitle">Watch each agent collect signals, run checks, score controls, and build the evidence chain. Click any agent for full detail — persists after the scan completes.</p>
+    </div>
+    <div class="investigation-banner-actions">
+        <label class="investigation-scan-picker">
+            <span class="visually-hidden">Select scan</span>
+            <select id="scan-picker" class="form-select form-select-sm">
+                {% for row in history %}
+                <option value="{{ row.id }}" {% if selected_scan and selected_scan.id == row.id %}selected{% endif %}>
+                    Scan #{{ row.id }} · {{ row.scan_timestamp }}
+                </option>
+                {% else %}
+                <option value="">No scans yet</option>
+                {% endfor %}
+            </select>
+        </label>
+        <button
+            id="run-scan-btn"
+            class="btn btn-primary btn-sm"
+            type="button"
+            data-start-url="{{ url_for('compliance.admin_compliance_run_start') }}"
+            data-status-url="{{ url_for('compliance.admin_compliance_run_status', job_id='JOB_ID') }}"
+            data-investigation-url="{{ url_for('compliance.admin_compliance_investigation') }}"
+        >
+            <i data-lucide="play"></i> Run Scan
+        </button>
+    </div>
+</section>
+
+<section id="investigation-progress" class="investigation-progress-panel" {% if not job_id %}hidden{% endif %} aria-live="polite">
+    <div class="investigation-progress-head">
+        <div>
+            <h3 id="inv-progress-title">Scan in progress</h3>
+            <p id="inv-progress-phase" class="panel-subtitle mb-0">Initializing…</p>
+        </div>
+        <span id="inv-progress-agent" class="scan-progress-agent" hidden></span>
+    </div>
+    <div class="scan-progress-bar-wrap">
+        <div id="inv-progress-bar" class="scan-progress-bar" style="width: 1%"></div>
+    </div>
+    <div class="scan-progress-meta">
+        <span id="inv-progress-percent">1%</span>
+        <span id="inv-progress-timing">
+            <span id="inv-progress-elapsed">0s elapsed</span>
+            <span aria-hidden="true"> · </span>
+            <span id="inv-progress-eta">Est. ~50s remaining</span>
+        </span>
+    </div>
+    <p id="inv-progress-message" class="scan-progress-message mb-0"></p>
+</section>
+
+<section class="investigation-layout">
+    <div class="investigation-main">
+        <div class="table-panel investigation-panel">
+            <div class="panel-heading">
+                <h2>Agent pipeline {{ help_icon("Each node is a specialist agent. Arrows show how data flows between them. Green = done, blue pulse = running, grey = waiting.", "Pipeline") }}</h2>
+            </div>
+            <div id="pipeline-viz" class="pipeline-viz"></div>
+        </div>
+
+        <div class="table-panel investigation-panel">
+            <div class="panel-heading d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <h2 id="agent-detail-title">Select an agent</h2>
+                <span id="agent-detail-status" class="badge text-bg-secondary">—</span>
+            </div>
+            <div id="agent-detail-body" class="agent-detail-body">
+                <p class="panel-subtitle">Click a node in the pipeline above to inspect what that agent received, did, and produced — including every check and evidence item.</p>
+            </div>
+        </div>
+    </div>
+
+    <aside class="investigation-sidebar">
+        <div class="table-panel investigation-panel">
+            <div class="panel-heading"><h2>Scan summary</h2></div>
+            <dl id="inv-summary" class="inv-summary-dl"></dl>
+        </div>
+        <div class="table-panel investigation-panel">
+            <div class="panel-heading"><h2>Live activity</h2></div>
+            <ul id="inv-activity" class="scan-progress-activity"></ul>
+        </div>
+    </aside>
+</section>
+
+<section class="table-panel investigation-panel mt-4">
+    <div class="panel-heading">
+        <h2>Full evidence chain {{ help_icon("Chronological record of every pipeline step, check result, control verdict, and disclosure gap — for admin audit and inspection.", "Evidence chain") }}</h2>
+    </div>
+    <div id="evidence-chain" class="evidence-chain-panel"></div>
+</section>
+
+<script id="investigation-bootstrap" type="application/json">
+{{ (investigation or {}) | tojson }}
+</script>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+(function () {
+    const bootstrap = document.getElementById("investigation-bootstrap");
+    let investigation = bootstrap ? JSON.parse(bootstrap.textContent || "{}") : {};
+    const jobId = {{ job_id|tojson if job_id else 'null' }};
+    const scanPicker = document.getElementById("scan-picker");
+    const runBtn = document.getElementById("run-scan-btn");
+    const progressPanel = document.getElementById("investigation-progress");
+    let pollTimer = null;
+    let selectedAgentId = null;
+    let userPinnedAgent = false;
+    const expandedKeys = new Set();
+
+    const AGENT_STATUS_LABEL = { idle: "Waiting", running: "Running", done: "Complete" };
+    const STATUS_CLASS = { idle: "agent-idle", running: "agent-running", done: "agent-done" };
+
+    function esc(s) {
+        if (s == null) return "";
+        return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    }
+
+    function formatEta(seconds) {
+        if (seconds == null || seconds <= 0) return "Finishing up…";
+        if (seconds < 60) return "Est. ~" + seconds + "s remaining";
+        return "Est. ~" + Math.ceil(seconds / 60) + " min remaining";
+    }
+
+    function formatElapsed(seconds) {
+        if (seconds == null || seconds < 0) return "0s elapsed";
+        if (seconds < 60) return seconds + "s elapsed";
+        return Math.floor(seconds / 60) + "m " + (seconds % 60) + "s elapsed";
+    }
+
+    function stepExpandKey(agentId, step) {
+        return "step:" + agentId + ":" + (step.check_id || ("n" + step.step) || step.title);
+    }
+
+    function evidenceExpandKey(seq) {
+        return "chain:" + seq;
+    }
+
+    function syncExpandedFromDom() {
+        document.querySelectorAll("details.reasoning-expand[open]").forEach(function (el) {
+            const k = el.getAttribute("data-expand-key");
+            if (k) expandedKeys.add(k);
+        });
+    }
+
+    document.addEventListener("toggle", function (e) {
+        const el = e.target;
+        if (el.tagName !== "DETAILS" || !el.classList.contains("reasoning-expand")) return;
+        const k = el.getAttribute("data-expand-key");
+        if (!k) return;
+        if (el.open) expandedKeys.add(k);
+        else expandedKeys.delete(k);
+    }, true);
+
+    function renderPipeline(inv) {
+        const el = document.getElementById("pipeline-viz");
+        if (!el || !inv.pipeline) return;
+        const agents = inv.agents || {};
+        const edges = inv.flow_edges || [];
+        let html = '<div class="pipeline-flow">';
+
+        inv.pipeline.forEach(function (node, idx) {
+            const a = agents[node.id] || node;
+            const status = a.status || node.status || "idle";
+            const active = selectedAgentId === node.id ? " pipeline-node-selected" : "";
+            html += '<div class="pipeline-node-wrap">';
+            if (idx > 0) {
+                const edge = edges.find(function (e) { return e.to === node.id && !e.optional; }) ||
+                    edges.find(function (e) { return e.to === node.id; });
+                html += '<div class="pipeline-connector" title="' + esc(edge ? edge.label : "") + '"><span class="pipeline-arrow">→</span><small>' + esc(edge ? edge.label : "") + '</small></div>';
+            }
+            html += '<button type="button" class="pipeline-node ' + STATUS_CLASS[status] + active + '" data-agent="' + esc(node.id) + '">';
+            html += '<span class="pipeline-node-icon"><i data-lucide="' + esc(node.icon || "cpu") + '"></i></span>';
+            html += '<span class="pipeline-node-label">' + esc(node.short || node.label) + '</span>';
+            html += '<span class="pipeline-node-status">' + esc(AGENT_STATUS_LABEL[status] || status) + '</span>';
+            html += '<span class="pipeline-node-summary">' + esc(a.summary || "") + '</span>';
+            html += '</button></div>';
+        });
+        html += '</div>';
+        el.innerHTML = html;
+        el.querySelectorAll(".pipeline-node").forEach(function (btn) {
+            btn.addEventListener("click", function () {
+                userPinnedAgent = true;
+                selectedAgentId = btn.dataset.agent;
+                renderPipeline(inv);
+                renderAgentDetail(inv, selectedAgentId);
+            });
+        });
+        if (window.lucide) window.lucide.createIcons();
+    }
+
+    function renderExecutionTrace(trace) {
+        if (!trace || !trace.length) return "";
+        let html = '<div class="exec-trace"><p class="exec-trace-title">Internal execution trace</p><ol class="exec-trace-list">';
+        trace.forEach(function (s) {
+            html += '<li class="exec-trace-step">';
+            html += '<div class="exec-trace-step-head"><span class="exec-trace-step-num">Step ' + esc(s.step) + '</span>';
+            html += '<strong>' + esc(s.action) + '</strong></div>';
+            html += '<p class="exec-trace-detail">' + esc(s.detail) + '</p>';
+            if (s.code) html += '<pre class="evidence-snippet exec-trace-code"><code>' + esc(s.code) + '</code></pre>';
+            if (s.output) html += '<p class="exec-trace-output"><strong>Output:</strong> ' + esc(s.output) + '</p>';
+            html += '</li>';
+        });
+        html += '</ol></div>';
+        return html;
+    }
+
+    function renderEvidenceItemHtml(item) {
+        let html = '<div class="reasoning-evidence-item evidence-' + esc(item.status || "unknown") + '">';
+        html += '<div class="reasoning-evidence-head"><strong>' + esc(item.test_name || "Check") + '</strong>';
+        html += '<span class="badge evidence-status-badge">' + esc(String(item.status || "unknown").toUpperCase()) + '</span></div>';
+        html += '<dl class="evidence-dl">';
+        html += '<div><dt>How executed</dt><dd>' + esc(item.method || "—") + '</dd></div>';
+        html += '<div><dt>Where</dt><dd><code>' + esc(item.where || "—") + '</code></dd></div>';
+        html += '<div><dt>What we found</dt><dd>' + esc(item.observation || "—") + '</dd></div>';
+        if (item.request_detail) html += '<div><dt>Request / action</dt><dd>' + esc(item.request_detail) + '</dd></div>';
+        if (item.result_detail) html += '<div><dt>Result</dt><dd>' + esc(item.result_detail) + '</dd></div>';
+        if (item.tool) html += '<div><dt>Tool</dt><dd>' + esc(item.tool) + '</dd></div>';
+        html += '</dl>';
+        if (item.snippet) html += '<pre class="evidence-snippet"><code>' + esc(item.snippet) + '</code></pre>';
+        html += renderExecutionTrace(item.execution_trace);
+        html += '</div>';
+        return html;
+    }
+
+    function renderExecutionExpand(step, agentId) {
+        if (!step.has_details) return "";
+        let inner = "";
+        const ex = step.execution;
+        if (ex) {
+            if (ex.technique) {
+                inner += '<p class="reasoning-exec-lead"><strong>Execution technique:</strong> ' + esc(ex.technique) + '</p>';
+            }
+            if (ex.summary) {
+                inner += '<p class="finding-desc">' + esc(ex.summary) + '</p>';
+            }
+            if (ex.finding_ids && ex.finding_ids.length) {
+                inner += '<p class="reasoning-meta"><strong>Linked controls:</strong> ' + esc(ex.finding_ids.join(", ")) + '</p>';
+            }
+            if (ex.evidence_items && ex.evidence_items.length) {
+                inner += '<div class="reasoning-evidence-list">';
+                ex.evidence_items.forEach(function (item) { inner += renderEvidenceItemHtml(item); });
+                inner += '</div>';
+            }
+        }
+        if (ex.execution_trace && ex.execution_trace.length) {
+            inner += renderExecutionTrace(ex.execution_trace);
+        }
+        if (step.evidence_blocks && step.evidence_blocks.length) {
+            inner += '<div class="reasoning-evidence-list">';
+            step.evidence_blocks.forEach(function (item) { inner += renderEvidenceItemHtml(item); });
+            inner += '</div>';
+        }
+        if (!inner) return "";
+        const key = stepExpandKey(agentId, step);
+        const openAttr = expandedKeys.has(key) ? " open" : "";
+        return '<details class="reasoning-expand" data-expand-key="' + esc(key) + '"' + openAttr + '><summary>View execution & evidence details</summary><div class="reasoning-expand-body">' + inner + '</div></details>';
+    }
+
+    function renderReasoningStep(step, agentId) {
+        let html = '<article class="reasoning-step reasoning-' + esc(step.step_type || "activity") + '">';
+        html += '<div class="reasoning-step-head"><span class="reasoning-step-num">Step ' + esc(step.step) + '</span>';
+        if (step.time) html += '<span class="activity-time">' + esc(step.time) + '</span>';
+        if (step.status) html += '<span class="badge evidence-status-badge">' + esc(String(step.status).toUpperCase()) + '</span>';
+        html += '</div>';
+        html += '<h5 class="reasoning-step-title">' + esc(step.title) + '</h5>';
+        html += '<dl class="reasoning-dl">';
+        html += '<div><dt>Why</dt><dd>' + esc(step.reasoning) + '</dd></div>';
+        html += '<div><dt>What I did</dt><dd>' + esc(step.action) + '</dd></div>';
+        html += '<div><dt>Conclusion</dt><dd>' + esc(step.conclusion) + '</dd></div>';
+        html += '</dl>';
+        html += renderExecutionExpand(step, agentId);
+        html += '</article>';
+        return html;
+    }
+
+    function renderAgentDetail(inv, agentId) {
+        const agent = (inv.agents || {})[agentId];
+        const title = document.getElementById("agent-detail-title");
+        const status = document.getElementById("agent-detail-status");
+        const body = document.getElementById("agent-detail-body");
+        if (!agent || !body) return;
+
+        syncExpandedFromDom();
+
+        title.textContent = agent.label || agentId;
+        status.textContent = AGENT_STATUS_LABEL[agent.status] || agent.status;
+        status.className = "badge " + (agent.status === "done" ? "text-bg-success" : agent.status === "running" ? "text-bg-primary" : "text-bg-secondary");
+
+        let html = '<p class="agent-role">' + esc(agent.role) + '</p>';
+
+        if (agent.outputs && agent.outputs.length) {
+            html += '<div class="agent-section"><h4>Hands off to next agents</h4><ul class="agent-io-list">';
+            agent.outputs.forEach(function (o) { html += "<li>" + esc(o) + "</li>"; });
+            html += "</ul></div>";
+        }
+
+        if (agent.reasoning_steps && agent.reasoning_steps.length) {
+            html += '<div class="agent-section"><h4>Agent reasoning & decisions</h4><div class="reasoning-steps">';
+            agent.reasoning_steps.forEach(function (step) {
+                html += renderReasoningStep(step, agentId);
+            });
+            html += "</div></div>";
+        }
+
+        if (agent.presented && agent.presented.length) {
+            html += '<div class="agent-section"><h4>Key outputs</h4>';
+            agent.presented.forEach(function (section) { html += renderPresentedSection(section, inv); });
+            html += "</div>";
+        }
+
+        if (agent.checks && agent.checks.length) {
+            html += '<div class="agent-section"><h4>Security checks (' + agent.checks.length + ')</h4><div class="evidence-list">';
+            agent.checks.forEach(function (chk) {
+                html += '<div class="evidence-block evidence-' + esc(chk.status || "unknown") + '">';
+                html += '<div class="evidence-block-head"><strong>' + esc(chk.name || chk.check_id) + '</strong>';
+                html += '<span class="badge evidence-status-badge">' + esc((chk.status || "unknown").toUpperCase()) + '</span></div>';
+                html += '<p class="finding-desc">' + esc(chk.evidence || "") + '</p>';
+                if (chk.evidence_items && chk.evidence_items.length) {
+                    chk.evidence_items.forEach(function (item) {
+                        html += renderEvidenceItemHtml({
+                            test_name: item.test_name || chk.name,
+                            status: item.status || chk.status,
+                            method: item.method,
+                            where: item.file || item.route || item.location || item.database,
+                            observation: item.observation,
+                            request_detail: item.request_detail,
+                            result_detail: item.result_detail,
+                            snippet: item.snippet,
+                            tool: item.tool,
+                            execution_trace: item.execution_trace || [],
+                        });
+                    });
+                } else {
+                    html += renderEvidenceItemHtml({
+                        test_name: chk.name || chk.check_id,
+                        status: chk.status,
+                        method: (chk.evidence_detail && chk.evidence_detail.method) || "Automated check",
+                        where: chk.check_id,
+                        observation: chk.evidence,
+                        execution_trace: chk.execution_trace || (chk.evidence_detail && chk.evidence_detail.execution_trace) || [],
+                    });
+                }
+                html += '</div>';
+            });
+            html += "</div></div>";
+        }
+
+        if (agent.artifacts && Object.keys(agent.artifacts).length) {
+            /* presented sections replace raw artifact dump */
+        }
+
+        body.innerHTML = html;
+    }
+
+    function renderPresentedSection(section, inv) {
+        let html = '<div class="presented-section">';
+        html += '<h5 class="presented-title">' + esc(section.title) + '</h5>';
+        if (section.type === "stats" && section.items) {
+            html += '<dl class="presented-stats">';
+            section.items.forEach(function (item) {
+                html += '<div><dt>' + esc(item.label) + '</dt><dd>' + esc(item.value) + '</dd></div>';
+            });
+            html += '</dl>';
+        } else if (section.type === "table" && section.rows) {
+            html += '<table class="table table-sm presented-table"><thead><tr>';
+            (section.columns || []).forEach(function (col) { html += '<th>' + esc(col) + '</th>'; });
+            html += '</tr></thead><tbody>';
+            section.rows.forEach(function (row) {
+                html += '<tr>';
+                Object.keys(row).forEach(function (k) { html += '<td>' + esc(row[k]) + '</td>'; });
+                html += '</tr>';
+            });
+            html += '</tbody></table>';
+        } else if (section.type === "cards" && section.cards) {
+            html += '<div class="presented-cards">';
+            section.cards.forEach(function (card) {
+                html += '<div class="presented-card"><strong>' + esc(card.label) + '</strong>';
+                html += '<span class="presented-card-value">' + esc(card.value) + '</span>';
+                if (card.hint) html += '<p class="presented-card-hint">' + esc(card.hint) + '</p>';
+                html += '</div>';
+            });
+            html += '</div>';
+        } else if (section.type === "list" && section.items) {
+            html += '<ul class="agent-io-list">';
+            section.items.forEach(function (item) { html += '<li>' + esc(item) + '</li>'; });
+            html += '</ul>';
+        } else if (section.type === "link" && section.report_id) {
+            html += '<p><a class="btn btn-sm btn-outline-light" href="/admin/compliance/reports/' + esc(section.report_id) + '">' + esc(section.label) + '</a></p>';
+            if (section.hint) html += '<p class="panel-subtitle">' + esc(section.hint) + '</p>';
+        }
+        html += '</div>';
+        return html;
+    }
+
+    function parseEvidenceLine(text) {
+        if (!text || text.indexOf("**") === -1) return null;
+        const lines = text.split("\n");
+        const first = lines[0] || "";
+        const m = first.match(/\*\*(.+?)\*\*\s*—\s*(\w+)/);
+        const item = {
+            test_name: m ? m[1] : "Evidence",
+            status: m ? m[2].toLowerCase() : "unknown",
+        };
+        lines.slice(1).forEach(function (line) {
+            line = line.replace(/^-\s*/, "").trim();
+            if (line.indexOf("**How tested:**") === 0) item.method = line.split("**How tested:**")[1].trim();
+            else if (line.indexOf("**Where:**") === 0) item.where = line.split("**Where:**")[1].trim();
+            else if (line.indexOf("**What we found:**") === 0) item.observation = line.split("**What we found:**")[1].trim();
+            else if (line.indexOf("**Request / action:**") === 0) item.request_detail = line.split("**Request / action:**")[1].trim();
+        });
+        const sn = text.match(/```\n([\s\S]*?)\n```/);
+        if (sn) item.snippet = sn[1].trim();
+        return item;
+    }
+
+    function renderSummary(inv) {
+        const el = document.getElementById("inv-summary");
+        if (!el) return;
+        const s = inv.summary || {};
+        el.innerHTML =
+            "<div><dt>Scan</dt><dd>" + (inv.scan_row_id ? "#" + inv.scan_row_id : "—") + " · " + esc(inv.scan_timestamp || "—") + "</dd></div>" +
+            "<div><dt>Duration</dt><dd>" + (inv.duration_seconds != null ? inv.duration_seconds + "s" : "—") + "</dd></div>" +
+            "<div><dt>Checks</dt><dd>" + (s.checks_pass || 0) + " pass · " + (s.checks_fail || 0) + " fail · " + (s.checks_partial || 0) + " partial</dd></div>" +
+            "<div><dt>Judge iterations</dt><dd>" + (s.iteration_count || 0) + "</dd></div>" +
+            "<div><dt>Non-compliant controls</dt><dd>" + (s.verdicts_non_compliant || 0) + "</dd></div>" +
+            "<div><dt>Disclosure gaps</dt><dd>" + (s.disclosure_gaps || 0) + "</dd></div>";
+    }
+
+    function renderActivity(log) {
+        const el = document.getElementById("inv-activity");
+        if (!el || !Array.isArray(log)) return;
+        el.innerHTML = "";
+        log.slice().reverse().slice(0, 12).forEach(function (entry) {
+            const li = document.createElement("li");
+            li.innerHTML = '<span class="activity-time">' + esc(entry.time) + '</span> <span class="activity-agent">' + esc(entry.agent) + '</span> <span class="activity-msg">' + esc(entry.message) + '</span>';
+            el.appendChild(li);
+        });
+    }
+
+    function renderEvidenceChain(inv) {
+        const el = document.getElementById("evidence-chain");
+        if (!el) return;
+        syncExpandedFromDom();
+        const chain = inv.evidence_chain || [];
+        if (!chain.length) {
+            el.innerHTML = '<p class="panel-subtitle mb-0">No evidence chain yet. Run a scan to populate this audit trail.</p>';
+            return;
+        }
+        let html = '<div class="evidence-chain-list">';
+        chain.forEach(function (item) {
+            const typeLabel = (item.type || "step").replace(/_/g, " ");
+            html += '<article class="evidence-chain-item evidence-chain-' + esc(item.type || "activity") + '">';
+            html += '<div class="evidence-chain-head"><span class="evidence-chain-seq">#' + esc(item.seq) + '</span>';
+            html += '<span class="badge text-bg-dark">' + esc(typeLabel) + '</span>';
+            html += '<span class="activity-agent">' + esc(item.agent || "") + '</span>';
+            if (item.time) html += '<span class="activity-time">' + esc(item.time) + '</span>';
+            html += '</div>';
+            html += '<h4 class="evidence-chain-action">' + esc(item.action || item.check_name || "") + '</h4>';
+            if (item.status) html += '<p><strong>Status:</strong> ' + esc(item.status) + '</p>';
+            if (item.detail && !item.evidence_items) html += '<p class="finding-desc">' + esc(item.detail) + '</p>';
+            if (item.evidence && !item.evidence_items) html += '<p class="finding-desc">' + esc(item.evidence) + '</p>';
+            if (item.evidence_items && item.evidence_items.length) {
+                html += '<div class="evidence-list mt-2">';
+                item.evidence_items.forEach(function (ev) {
+                    html += renderEvidenceItemHtml({
+                        test_name: ev.test_name,
+                        status: ev.status || item.status,
+                        method: ev.method,
+                        where: ev.file || ev.route || ev.location || ev.database,
+                        observation: ev.observation,
+                        request_detail: ev.request_detail,
+                        result_detail: ev.result_detail,
+                        snippet: ev.snippet,
+                        tool: ev.tool,
+                    });
+                });
+                html += '</div>';
+            }
+            if (item.evidence_chain && item.evidence_chain.length && !item.evidence_items) {
+                const ekey = evidenceExpandKey(item.seq);
+                const openAttr = expandedKeys.has(ekey) ? " open" : "";
+                html += '<details class="reasoning-expand mt-2" data-expand-key="' + esc(ekey) + '"' + openAttr + '><summary>View parsed evidence</summary><div class="reasoning-expand-body"><div class="reasoning-evidence-list">';
+                item.evidence_chain.forEach(function (line) {
+                    html += renderEvidenceItemHtml(parseEvidenceLine(line) || { test_name: "Evidence", observation: line, status: item.status });
+                });
+                html += '</div></div></details>';
+            }
+            html += '</article>';
+        });
+        html += '</div>';
+        el.innerHTML = html;
+    }
+
+    function renderAll(inv, opts) {
+        opts = opts || {};
+        investigation = inv || investigation;
+        renderPipeline(investigation);
+        renderSummary(investigation);
+        if (!opts.skipEvidenceChain) {
+            renderEvidenceChain(investigation);
+        }
+        if (selectedAgentId && investigation.agents && investigation.agents[selectedAgentId]) {
+            if (!opts.skipAgentDetail) {
+                renderAgentDetail(investigation, selectedAgentId);
+            }
+        } else if (investigation.pipeline && investigation.pipeline.length && !userPinnedAgent) {
+            const complete = investigation.scan_complete;
+            const running = !complete && investigation.pipeline.find(function (p) { return p.status === "running"; });
+            const first = running || investigation.pipeline[1] || investigation.pipeline[0];
+            if (first) {
+                selectedAgentId = first.id;
+                renderPipeline(investigation);
+                if (!opts.skipAgentDetail) {
+                    renderAgentDetail(investigation, selectedAgentId);
+                }
+            }
+        }
+    }
+
+    function hasOpenExpansions() {
+        return expandedKeys.size > 0 || document.querySelector("details.reasoning-expand[open]");
+    }
+
+    function updateProgress(data) {
+        if (!progressPanel) return;
+        progressPanel.hidden = data.status === "completed" && !jobId;
+        const pct = Math.max(1, data.percent || 0);
+        document.getElementById("inv-progress-bar").style.width = pct + "%";
+        document.getElementById("inv-progress-percent").textContent = pct + "%";
+        document.getElementById("inv-progress-phase").textContent = data.phase_label || "";
+        document.getElementById("inv-progress-message").textContent = data.message || "";
+        document.getElementById("inv-progress-elapsed").textContent = formatElapsed(data.elapsed_seconds);
+        document.getElementById("inv-progress-eta").textContent = data.status === "running" ? formatEta(data.eta_seconds) : "Complete";
+        const agentEl = document.getElementById("inv-progress-agent");
+        if (data.current_agent_label && data.status === "running") {
+            agentEl.textContent = data.current_agent_label;
+            agentEl.hidden = false;
+        } else {
+            agentEl.hidden = true;
+        }
+        renderActivity(data.activity_log || []);
+        if (data.investigation) {
+            syncExpandedFromDom();
+            const live = data.status === "running";
+            const reading = hasOpenExpansions();
+            renderAll(data.investigation, {
+                skipAgentDetail: live && reading,
+                skipEvidenceChain: live && reading,
+            });
+            if (live && reading && selectedAgentId && data.investigation.agents) {
+                const agent = data.investigation.agents[selectedAgentId];
+                if (agent) {
+                    const title = document.getElementById("agent-detail-title");
+                    const status = document.getElementById("agent-detail-status");
+                    if (title) title.textContent = agent.label || selectedAgentId;
+                    if (status) {
+                        status.textContent = AGENT_STATUS_LABEL[agent.status] || agent.status;
+                        status.className = "badge " + (agent.status === "done" ? "text-bg-success" : agent.status === "running" ? "text-bg-primary" : "text-bg-secondary");
+                    }
+                }
+            }
+        }
+    }
+
+    function pollStatus(urlTemplate, id) {
+        fetch(urlTemplate.replace("JOB_ID", id), { headers: { Accept: "application/json" } })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                updateProgress(data);
+                if (data.status === "completed") {
+                    clearInterval(pollTimer);
+                    const result = data.result || {};
+                    const params = new URLSearchParams({
+                        scan_ok: String(result.scan_id || ""),
+                        report_id: String(result.report_id || ""),
+                    });
+                    setTimeout(function () {
+                        window.location.href = runBtn.dataset.investigationUrl + "/" + (result.scan_id || "") + "?" + params.toString();
+                    }, 800);
+                } else if (data.status === "failed") {
+                    clearInterval(pollTimer);
+                    runBtn.disabled = false;
+                    window.location.href = runBtn.dataset.investigationUrl + "?scan_error=" + encodeURIComponent(data.error || "Scan failed");
+                }
+            })
+            .catch(function () {});
+    }
+
+    if (scanPicker) {
+        scanPicker.addEventListener("change", function () {
+            if (scanPicker.value) {
+                window.location.href = runBtn.dataset.investigationUrl + "/" + scanPicker.value;
+            }
+        });
+    }
+
+    if (runBtn) {
+        runBtn.addEventListener("click", function () {
+            runBtn.disabled = true;
+            userPinnedAgent = false;
+            expandedKeys.clear();
+            if (progressPanel) progressPanel.hidden = false;
+            updateProgress({ percent: 1, phase_label: "Starting scan…", status: "running", elapsed_seconds: 0, eta_seconds: 50, activity_log: [] });
+
+            fetch(runBtn.dataset.startUrl, {
+                method: "POST",
+                headers: { Accept: "application/json", "X-Requested-With": "XMLHttpRequest" },
+            })
+                .then(function (r) {
+                    if (!r.ok) throw new Error("Could not start scan");
+                    return r.json();
+                })
+                .then(function (data) {
+                    const jobUrl = runBtn.dataset.investigationUrl + "?job=" + data.job_id;
+                    window.history.replaceState({}, "", jobUrl);
+                    updateProgress(data);
+                    pollTimer = setInterval(function () { pollStatus(runBtn.dataset.statusUrl, data.job_id); }, 450);
+                    pollStatus(runBtn.dataset.statusUrl, data.job_id);
+                })
+                .catch(function (err) {
+                    runBtn.disabled = false;
+                    window.location.href = runBtn.dataset.investigationUrl + "?scan_error=" + encodeURIComponent(err.message);
+                });
+        });
+    }
+
+    renderAll(investigation);
+
+    if (jobId && runBtn) {
+        runBtn.disabled = true;
+        if (progressPanel) progressPanel.hidden = false;
+        pollTimer = setInterval(function () { pollStatus(runBtn.dataset.statusUrl, jobId); }, 450);
+        pollStatus(runBtn.dataset.statusUrl, jobId);
+    }
+
+    if (window.lucide) window.lucide.createIcons();
+})();
+</script>
+{% endblock %}

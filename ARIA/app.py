@@ -4,6 +4,7 @@ import os
 import sqlite3
 from datetime import datetime
 from functools import wraps
+from uuid import uuid4
 
 from flask import (
     Flask,
@@ -17,12 +18,17 @@ from flask import (
     url_for,
 )
 
+from transfer_service import process_transfer
+
+from compliance.routes import compliance_bp
+
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATABASE = os.path.join(BASE_DIR, "aria_bank.db")
 
 app = Flask(__name__)
 app.config["SECRET_KEY"] = "aria-bank-dev-secret"
+app.register_blueprint(compliance_bp)
 
 
 def get_db() -> sqlite3.Connection:
@@ -134,6 +140,122 @@ def log_event(
     get_db().commit()
 
 
+def _table_columns(db: sqlite3.Connection, table: str) -> set[str]:
+    rows = db.execute(f"PRAGMA table_info({table})").fetchall()
+    return {row[1] for row in rows}
+
+
+def _ensure_column(db: sqlite3.Connection, table: str, column: str, ddl: str) -> None:
+    if column not in _table_columns(db, table):
+        db.execute(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}")
+
+
+def migrate_schema() -> None:
+    db = get_db()
+    _ensure_column(db, "accounts", "balance_cents", "INTEGER")
+    _ensure_column(db, "transactions", "amount_cents", "INTEGER")
+    db.execute(
+        """
+        UPDATE accounts
+        SET balance_cents = CAST(ROUND(balance * 100) AS INTEGER)
+        WHERE balance_cents IS NULL
+        """
+    )
+    db.execute(
+        """
+        UPDATE transactions
+        SET amount_cents = CAST(ROUND(amount * 100) AS INTEGER)
+        WHERE amount_cents IS NULL
+        """
+    )
+    db.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS rejected_transfers (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            sender_account_id INTEGER NOT NULL,
+            recipient_lookup TEXT,
+            recipient_account_id INTEGER,
+            amount_cents INTEGER,
+            idempotency_key TEXT,
+            reason_code TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'rejected',
+            request_context TEXT,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY (user_id) REFERENCES users (id),
+            FOREIGN KEY (sender_account_id) REFERENCES accounts (id)
+        );
+
+        CREATE TABLE IF NOT EXISTS transfer_idempotency (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            sender_account_id INTEGER NOT NULL,
+            idempotency_key TEXT NOT NULL,
+            recipient_account_id INTEGER,
+            amount_cents INTEGER,
+            description TEXT,
+            status TEXT NOT NULL,
+            transaction_id INTEGER,
+            created_at TEXT NOT NULL,
+            UNIQUE(sender_account_id, idempotency_key),
+            FOREIGN KEY (sender_account_id) REFERENCES accounts (id),
+            FOREIGN KEY (transaction_id) REFERENCES transactions (id)
+        );
+
+        CREATE TABLE IF NOT EXISTS compliance_scans (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scan_timestamp TEXT NOT NULL,
+            scan_type TEXT NOT NULL DEFAULT 'manual',
+            triggered_by INTEGER,
+            kpi_snapshot TEXT NOT NULL,
+            check_results TEXT NOT NULL,
+            tool_results TEXT,
+            compliance_score_owasp REAL,
+            compliance_score_iso REAL,
+            compliance_score_nist REAL,
+            compliance_score_gdpr REAL,
+            findings_open INTEGER,
+            findings_resolved INTEGER,
+            iteration_count INTEGER DEFAULT 0,
+            shared_state TEXT,
+            status TEXT NOT NULL DEFAULT 'completed',
+            FOREIGN KEY (triggered_by) REFERENCES users (id)
+        );
+
+        CREATE TABLE IF NOT EXISTS compliance_reports (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scan_id INTEGER NOT NULL,
+            report_markdown TEXT NOT NULL,
+            verdicts_json TEXT,
+            disclosure_gaps_json TEXT,
+            llm_model TEXT,
+            human_reviewed INTEGER NOT NULL DEFAULT 0,
+            reviewed_by INTEGER,
+            reviewed_at TEXT,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (scan_id) REFERENCES compliance_scans (id),
+            FOREIGN KEY (reviewed_by) REFERENCES users (id)
+        );
+
+        CREATE TABLE IF NOT EXISTS compliance_control_verdicts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            control_id TEXT NOT NULL,
+            scan_id INTEGER NOT NULL,
+            verdict TEXT NOT NULL,
+            score REAL,
+            evidence_json TEXT,
+            last_verified_at TEXT NOT NULL,
+            verdict_expires_at TEXT NOT NULL,
+            FOREIGN KEY (scan_id) REFERENCES compliance_scans (id)
+        );
+        """
+    )
+    _ensure_column(db, "compliance_reports", "report_html", "TEXT")
+    _ensure_column(db, "compliance_reports", "report_sections_json", "TEXT")
+    _ensure_column(db, "compliance_reports", "executive_summary", "TEXT")
+    _ensure_column(db, "compliance_scans", "investigation_json", "TEXT")
+    db.commit()
+
+
 def init_db() -> None:
     db = get_db()
     db.executescript(
@@ -208,6 +330,7 @@ def init_db() -> None:
         """
     )
     db.commit()
+    migrate_schema()
     seed_data()
     seed_banking_content()
 
@@ -233,12 +356,12 @@ def seed_data() -> None:
     )
 
     accounts = [
-        (1, "ARIA-1000-2401-9001", "Everyday Chequing", 4500.00),
-        (2, "ARIA-1000-2401-9002", "Everyday Chequing", 8200.00),
-        (3, "ARIA-2000-8800-3120", "Business Operating", 25000.00),
+        (1, "ARIA-1000-2401-9001", "Everyday Chequing", 4500.00, 450000),
+        (2, "ARIA-1000-2401-9002", "Everyday Chequing", 8200.00, 820000),
+        (3, "ARIA-2000-8800-3120", "Business Operating", 25000.00, 2500000),
     ]
     db.executemany(
-        "INSERT INTO accounts (user_id, account_number, account_type, balance) VALUES (?, ?, ?, ?)",
+        "INSERT INTO accounts (user_id, account_number, account_type, balance, balance_cents) VALUES (?, ?, ?, ?, ?)",
         accounts,
     )
 
@@ -357,8 +480,8 @@ def register():
             account_number = f"ARIA-NEW-{1000 + user_id}-{9000 + user_id}"
             db.execute(
                 """
-                INSERT INTO accounts (user_id, account_number, account_type, balance)
-                VALUES (?, ?, 'Everyday Chequing', 100.00)
+                INSERT INTO accounts (user_id, account_number, account_type, balance, balance_cents)
+                VALUES (?, ?, 'Everyday Chequing', 100.00, 10000)
                 """,
                 (user_id, account_number),
             )
@@ -454,50 +577,35 @@ def transfer():
         recipient_lookup = request.form.get("recipient", "").strip()
         description = request.form.get("description", "").strip()
         amount_raw = request.form.get("amount", "0").strip()
-
-        try:
-            amount = float(amount_raw)
-        except ValueError:
-            amount = 0
-
-        recipient = query_one(
-            """
-            SELECT accounts.*, users.email, users.full_name
-            FROM accounts
-            JOIN users ON users.id = accounts.user_id
-            WHERE users.email = ? OR accounts.account_number = ?
-            """,
-            (recipient_lookup, recipient_lookup),
+        idempotency_key = request.form.get("idempotency_key", "").strip()
+        request_context = {
+            "ip_address": request.remote_addr,
+            "user_agent": request.headers.get("User-Agent", ""),
+            "path": request.path,
+        }
+        result = process_transfer(
+            get_db(),
+            user_id=user["id"],
+            sender_account_id=sender_account["id"],
+            sender_status=user["account_status"],
+            recipient_lookup=recipient_lookup,
+            amount_raw=amount_raw,
+            description=description,
+            idempotency_key=idempotency_key,
+            request_context=request_context,
         )
-
-        if not recipient:
-            flash("Recipient account was not found.", "danger")
-        elif amount <= 0:
-            flash("Enter a positive transfer amount.", "danger")
-        elif amount > sender_account["balance"]:
-            flash("Insufficient funds for this transfer.", "danger")
-        else:
-            db = get_db()
-            db.execute("UPDATE accounts SET balance = balance - ? WHERE id = ?", (amount, sender_account["id"]))
-            db.execute("UPDATE accounts SET balance = balance + ? WHERE id = ?", (amount, recipient["id"]))
-            db.execute(
-                """
-                INSERT INTO transactions (sender_account_id, recipient_account_id, amount, description, status)
-                VALUES (?, ?, ?, ?, 'Completed')
-                """,
-                (sender_account["id"], recipient["id"], amount, description),
-            )
-            db.commit()
-            log_event(
-                user["id"],
-                "TRANSFER_CREATED",
-                f"Transfer of CAD {amount:.2f} sent to {recipient['email']}. Note: {description}",
-                "Medium" if amount >= 1000 else "Low",
-            )
-            flash("Transfer completed.", "success")
+        if result.success:
+            flash(result.message, "success" if not result.idempotent_replay else "info")
             return redirect(url_for("transactions"))
+        flash(result.message, "danger")
 
-    return render_template("transfer.html", account=sender_account, recipients=recipients)
+    idempotency_key = str(uuid4())
+    return render_template(
+        "transfer.html",
+        account=sender_account,
+        recipients=recipients,
+        idempotency_key=idempotency_key,
+    )
 
 
 @app.route("/transactions")
@@ -788,6 +896,24 @@ def audit_logs():
         """
     )
     return render_template("audit_logs.html", audit_logs=rows)
+
+
+@app.route("/admin/rejected-transfers")
+@staff_or_admin_required
+def admin_rejected_transfers():
+    rows = query_all(
+        """
+        SELECT rejected_transfers.*, users.full_name, users.email,
+               accounts.account_number AS sender_account_number
+        FROM rejected_transfers
+        JOIN users ON users.id = rejected_transfers.user_id
+        JOIN accounts ON accounts.id = rejected_transfers.sender_account_id
+        ORDER BY rejected_transfers.created_at DESC
+        LIMIT 200
+        """
+    )
+    log_event(session.get("user_id"), "ADMIN_VIEW_REJECTED_TRANSFERS", "Staff viewed rejected transfer log.", "Low")
+    return render_template("admin_rejected_transfers.html", rejected_transfers=rows)
 
 
 @app.errorhandler(403)

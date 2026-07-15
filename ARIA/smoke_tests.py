@@ -16,6 +16,11 @@ def assert_missing(client, path):
     assert response.status_code == 404, f"{path} should be removed, got {response.status_code}"
 
 
+def assert_forbidden(client, path):
+    response = client.get(path, follow_redirects=False)
+    assert response.status_code == 403, f"{path} should be forbidden, got {response.status_code}"
+
+
 def login(client, email, password):
     response = client.post(
         "/login",
@@ -47,10 +52,10 @@ def run():
             "/support",
             "/documents",
             "/statements",
-            "/employee-portal",
-            "/admin",
         ]:
             assert_ok(client, path)
+        for path in ["/employee-portal", "/admin"]:
+            assert_forbidden(client, path)
 
         transfer_page = client.get("/transfer")
         idempotency_key = extract_idempotency_key(transfer_page.data)
@@ -101,9 +106,17 @@ def run():
             "/admin/transactions",
             "/admin/rejected-transfers",
             "/admin/audit-logs",
+            "/admin/compliance",
+            "/admin/compliance/findings",
+            "/admin/compliance/reports",
             "/employee-portal",
         ]:
             assert_ok(client, path)
+
+        client.get("/logout", follow_redirects=True)
+        login(client, "john@aria.local", "password123")
+        for path in ["/admin/compliance", "/admin/compliance/findings", "/admin/compliance/reports"]:
+            assert_forbidden(client, path)
 
 
 if __name__ == "__main__":

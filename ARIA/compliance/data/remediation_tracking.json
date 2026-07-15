@@ -1,0 +1,5 @@
+{
+  "F-18": {"opened": "2026-05-01", "target": "2026-06-15", "status": "partial"},
+  "F-05": {"opened": "2026-04-01", "target": "2026-05-01", "status": "open"},
+  "F-08": {"opened": "2026-04-15", "target": "2026-06-01", "status": "open"}
+}

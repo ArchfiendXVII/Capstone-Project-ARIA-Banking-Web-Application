@@ -1,0 +1,7 @@
+[
+  {"id": "DG-CSRF", "title": "CSRF protection not disclosed in security page", "expect": "WC-01 pass", "check_id": "WC-01", "severity": "medium"},
+  {"id": "DG-PRIVACY", "title": "Privacy export/delete/consent workflows missing", "expect": "privacy routes exist", "routes": ["/privacy", "/privacy/export", "/privacy/delete", "/privacy/consent"], "severity": "high"},
+  {"id": "DG-RATE-LIMIT", "title": "Login rate limiting not implemented", "expect": "WC-02 pass", "check_id": "WC-02", "severity": "high"},
+  {"id": "DG-HEADERS", "title": "Security headers not fully configured", "expect": "CF-03 pass", "check_id": "CF-03", "severity": "medium"},
+  {"id": "DG-REJECTED-LOG", "title": "Rejected transfer logging incomplete", "expect": "TC-04 pass", "check_id": "TC-04", "severity": "medium"}
+]
