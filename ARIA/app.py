@@ -530,7 +530,7 @@ def login():
     return render_template("login.html")
 
 
-@app.route("/logout")
+@app.post("/logout")
 @login_required
 def logout():
     user_id = session.get("user_id")

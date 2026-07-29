@@ -63,7 +63,12 @@
                     <button class="icon-button" type="button" aria-label="Alerts"><i data-lucide="bell"></i></button>
                     <span class="role-badge"><i data-lucide="shield"></i>{{ current_user.role|title }}</span>
                     <span class="user-chip">{{ current_user.full_name }}</span>
-                    <a class="btn btn-outline-light btn-sm" href="{{ url_for('logout') }}"><i data-lucide="log-out"></i>Sign Out</a>
+                    <form method="post" action="{{ url_for('logout') }}" class="d-inline">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button class="btn btn-outline-light btn-sm" type="submit">
+                            <i data-lucide="log-out"></i>Sign Out
+                        </button>
+                    </form>
                 </div>
             </header>
             <section class="content-wrap">
