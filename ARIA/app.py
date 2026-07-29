@@ -5,6 +5,13 @@ import secrets
 import sqlite3
 from datetime import datetime
 from functools import wraps
+from dotenv import load_dotenv
+from werkzeug.security import generate_password_hash, check_password_hash
+
+load_dotenv()
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DATABASE = os.path.join(BASE_DIR, "aria_bank.db")
 
 from flask import (
     Flask,
@@ -25,8 +32,10 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATABASE = os.path.join(BASE_DIR, "aria_bank.db")
 
 app = Flask(__name__)
-app.config["SECRET_KEY"] = "aria-bank-dev-secret"
+app.config["SECRET_KEY"] = os.getenv("SECRET_KEY")
 
+if not app.config["SECRET_KEY"]:
+    raise RuntimeError("SECRET_KEY environment variable is not set")
 
 def get_db() -> sqlite3.Connection:
     if "db" not in g:
@@ -450,6 +459,8 @@ def register():
         if not full_name or not email or not password:
             flash("Name, email, and password are required.", "danger")
             return render_template("register.html")
+
+        hashed_password = generate_password_hash(password)
 
         try:
             db = get_db()
