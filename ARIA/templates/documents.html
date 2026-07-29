@@ -20,6 +20,7 @@
         <p class="eyebrow">Document Vault</p>
         <h2>Upload document</h2>
         <form method="post" enctype="multipart/form-data" class="form-stack">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <label>Document type
                 <select class="form-select" name="document_type">
                     <option>Statement</option>

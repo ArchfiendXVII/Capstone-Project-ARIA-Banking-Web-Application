@@ -40,6 +40,7 @@
                     <td class="text-end amount-cell">{% if row.balance is not none %}CAD {{ "%.2f"|format(row.balance) }}{% else %}N/A{% endif %}</td>
                     <td>
                         <form method="post" class="inline-form">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             <input type="hidden" name="user_id" value="{{ row.id }}">
                             <select class="form-select form-select-sm" name="role">
                                 {% for role in ['customer', 'staff', 'admin'] %}

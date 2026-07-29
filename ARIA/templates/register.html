@@ -69,6 +69,7 @@
         <h2>Create your ARIA account</h2>
         <p class="panel-subtitle">Enter your details to create your banking profile.</p>
         <form method="post" class="form-stack">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <label>Full name
                 <input class="form-control" name="full_name" required>
             </label>

@@ -44,6 +44,7 @@
                         <span class="badge text-bg-danger">Suspicious</span>
                         {% else %}
                         <form method="post">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             <input type="hidden" name="transaction_id" value="{{ tx.id }}">
                             <button class="btn btn-outline-danger btn-sm" type="submit"><i data-lucide="flag"></i> Flag</button>
                         </form>

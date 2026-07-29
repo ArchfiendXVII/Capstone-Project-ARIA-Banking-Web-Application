@@ -25,6 +25,8 @@ from flask import (
     url_for,
 )
 
+from flask_wtf.csrf import CSRFError, CSRFProtect
+
 from transfer_service import process_transfer
 
 from compliance.routes import compliance_bp
@@ -36,6 +38,8 @@ DATABASE = os.path.join(BASE_DIR, "aria_bank.db")
 app = Flask(__name__)
 app.config["SECRET_KEY"] = "aria-bank-dev-secret"
 app.register_blueprint(compliance_bp)
+
+csrf = CSRFProtect(app)
 
 if not app.config["SECRET_KEY"]:
     raise RuntimeError("SECRET_KEY environment variable is not set")

@@ -69,6 +69,7 @@
         <h2>Welcome back</h2>
         <p class="panel-subtitle">Sign in to continue to your account overview and transactions.</p>
         <form method="post" class="form-stack">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <label>Email
                 <input class="form-control" type="email" name="email" autocomplete="username" required>
             </label>

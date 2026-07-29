@@ -20,6 +20,7 @@
         <p class="eyebrow">Account Details</p>
         <h2>Personal information</h2>
         <form method="post" class="form-stack">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <label>Full name
                 <input class="form-control" name="full_name" value="{{ user.full_name }}" required>
             </label>

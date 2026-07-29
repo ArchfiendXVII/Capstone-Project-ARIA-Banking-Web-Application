@@ -19,6 +19,7 @@
         <p class="eyebrow">Payments</p>
         <h2>Send a transfer</h2>
         <form method="post" class="form-stack">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="idempotency_key" value="{{ idempotency_key }}">
             <label>Recipient account or email
                 <input class="form-control" name="recipient" list="recipients" placeholder="recipient@email.com" required>
