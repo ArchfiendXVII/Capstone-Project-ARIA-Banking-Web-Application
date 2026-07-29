@@ -36,7 +36,19 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATABASE = os.path.join(BASE_DIR, "aria_bank.db")
 
 app = Flask(__name__)
-app.config["SECRET_KEY"] = "aria-bank-dev-secret"
+
+secret_key = os.environ.get("SECRET_KEY")
+if not secret_key:
+    raise RuntimeError(
+        "SECRET_KEY environment variable is not set. "
+        "Create a local .env file or configure it in the deployment environment."
+    )
+
+if len(secret_key) < 32:
+    raise RuntimeError("SECRET_KEY must contain at least 32 characters.")
+
+app.config["SECRET_KEY"] = secret_key
+
 app.register_blueprint(compliance_bp)
 
 csrf = CSRFProtect(app)
