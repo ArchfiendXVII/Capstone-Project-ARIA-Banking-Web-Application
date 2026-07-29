@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+{% from "compliance_macros.html" import help_icon, metric_card %}
+
+{% block title %}Compliance Monitor | ARIA Bank{% endblock %}
+{% block page_title %}Compliance Monitor{% endblock %}
+
+{% block content %}
+{% include "compliance_nav.html" %}
+
+{% if request.args.get('scan_ok') %}
+<section class="alert alert-success">
+    Compliance scan #{{ request.args.get('scan_ok') }} completed successfully.
+    {% if request.args.get('report_id') %}
+    <a href="{{ url_for('compliance.admin_compliance_report_detail', report_id=request.args.get('report_id')) }}">View full gap analysis report #{{ request.args.get('report_id') }}</a>
+    {% endif %}
+</section>
+{% endif %}
+{% if request.args.get('scan_error') %}
+<section class="alert alert-danger">{{ request.args.get('scan_error') }}</section>
+{% endif %}
+
+<section class="page-banner compact">
+    <div>
+        <p class="eyebrow">Continuous Compliance</p>
+        <h2>Security & compliance dashboard</h2>
+        <p class="panel-subtitle">Human-readable KPIs, framework scores, and scan history. Hover the <strong>?</strong> icon on any metric for an explanation.</p>
+    </div>
+    <div class="banner-chips">
+        {% if latest %}
+        <span><i data-lucide="database"></i>All data stored in local SQLite</span>
+        <span><i data-lucide="scan"></i>Last scan {{ latest.scan_timestamp }}</span>
+        {% else %}
+        <span><i data-lucide="scan"></i>No scans yet — run your first scan below</span>
+        {% endif %}
+    </div>
+</section>
+
+{% if expired %}
+<section class="alert alert-warning">
+    <strong>{{ expired|length }} expired verdict(s)</strong> require re-scan — controls past the verification expiry window.
+</section>
+{% endif %}
+
+<section class="compliance-section">
+    <div class="section-heading">
+        <h2>Priority metrics {{ help_icon("Quick health indicators for the security program. Hover ? for details.", "Priority metrics") }}</h2>
+    </div>
+    <section class="metric-grid">
+        {% for m in priority_metrics %}
+        {{ metric_card(m.label, m.value, m.description, m.target, m.unit, m.direction, m.display.status) }}
+        {% endfor %}
+    </section>
+</section>
+
+{% if kpi.framework_scores %}
+<section class="compliance-section mt-3">
+    <div class="section-heading">
+        <h2>Framework alignment scores {{ help_icon("Sub-scores showing how well the app aligns with OWASP, ISO, NIST, and GDPR themes based on automated check results.", "Framework scores") }}</h2>
+    </div>
+    <section class="metric-grid framework-grid">
+        {% for fw, score in kpi.framework_scores.items() %}
+        <div class="metric-card">
+            <div class="kpi-card-head">
+                <span>{{ fw|upper }}</span>
+                {{ help_icon(framework_help.get(fw, ''), fw|upper ~ ' score') }}
+            </div>
+            <strong>{{ score }}%</strong>
+            <small>Compliance theme coverage</small>
+        </div>
+        {% endfor %}
+    </section>
+</section>
+{% endif %}
+
+<div class="two-column mt-4">
+    <section class="table-panel">
+        <div class="panel-heading d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div>
+                <h2>Recent scans</h2>
+                <p class="panel-subtitle mb-0">Stored in <code>compliance_scans</code> table</p>
+            </div>
+            <a class="btn btn-primary btn-sm" href="{{ url_for('compliance.admin_compliance_investigation') }}">
+                <i data-lucide="microscope"></i> Open Investigation
+            </a>
+        </div>
+        <table class="table table-sm align-middle compliance-table">
+            <thead>
+                <tr>
+                    <th>Scan ID</th>
+                    <th>When</th>
+                    <th>Open findings</th>
+                    <th>Resolved</th>
+                    <th>Judge iterations</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in history %}
+                <tr>
+                    <td>#{{ row.id }}</td>
+                    <td>{{ row.scan_timestamp }}</td>
+                    <td><span class="text-danger-emphasis">{{ row.findings_open }}</span></td>
+                    <td><span class="text-success-emphasis">{{ row.findings_resolved }}</span></td>
+                    <td>{{ row.iteration_count }}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="5" class="empty-state">No compliance scans recorded yet.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </section>
+    <section class="table-panel">
+        <div class="panel-heading"><h2>Explore results</h2></div>
+        <div class="p-3 d-grid gap-2">
+            <a class="btn btn-outline-light" href="{{ url_for('compliance.admin_compliance_investigation') }}">
+                <i data-lucide="microscope"></i> Investigation workspace
+            </a>
+            <a class="btn btn-outline-light" href="{{ url_for('compliance.admin_compliance_findings') }}">
+                <i data-lucide="shield-alert"></i> Security findings register
+            </a>
+            <a class="btn btn-outline-light" href="{{ url_for('compliance.admin_compliance_reports') }}">
+                <i data-lucide="file-text"></i> Gap analysis reports
+            </a>
+        </div>
+        <div class="p-3 pt-0">
+            <p class="panel-subtitle mb-0"><strong>Local database:</strong> Scans, verdicts, and full reports are persisted in <code>aria_bank.db</code> — no external storage required.</p>
+        </div>
+    </section>
+</div>
+{% endblock %}

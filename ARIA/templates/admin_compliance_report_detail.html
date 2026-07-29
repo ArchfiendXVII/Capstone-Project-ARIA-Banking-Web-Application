@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% from "compliance_macros.html" import help_icon, verdict_badge %}
+
+{% block title %}Report #{{ report.id }} | ARIA Bank{% endblock %}
+{% block page_title %}Gap Analysis Report #{{ report.id }}{% endblock %}
+
+{% block content %}
+{% include "compliance_nav.html" %}
+
+<section class="page-banner compact">
+    <div>
+        <p class="eyebrow">Professional security assessment</p>
+        <h2>Gap analysis & compliance report</h2>
+        <p class="panel-subtitle">
+            Scan #{{ report.scan_id }} · {{ report.scan_timestamp }} · Model: {{ report.llm_model or 'structured + LLM' }}
+            · Stored in local database (report #{{ report.id }})
+            · <a href="{{ url_for('compliance.admin_compliance_investigation', scan_id=report.scan_id) }}">View investigation trace</a>
+        </p>
+    </div>
+    <div class="banner-chips">
+        {% if report.human_reviewed %}
+        <span class="badge text-bg-success">Human reviewed</span>
+        {% else %}
+        <form method="post" action="{{ url_for('compliance.admin_compliance_report_review', report_id=report.id) }}">
+            <button class="btn btn-primary btn-sm" type="submit">Mark reviewed</button>
+        </form>
+        {% endif %}
+    </div>
+</section>
+
+{% if report.executive_summary %}
+<section class="table-panel mb-4 exec-summary-panel">
+    <div class="panel-heading">
+        <h2>Executive summary {{ help_icon("Consultant narrative for leadership — key risks and priorities in plain language.", "Executive summary") }}</h2>
+    </div>
+    <div class="exec-summary-body p-3">{{ report.executive_summary }}</div>
+</section>
+{% endif %}
+
+{% if gaps %}
+<section class="table-panel mb-4">
+    <div class="panel-heading"><h2>Disclosure gaps {{ help_icon("Controls or features that were never implemented in the application — distinct from misconfigured controls.", "Disclosure gaps") }}</h2></div>
+    <ul class="gap-list">
+        {% for gap in gaps %}
+        <li class="gap-item">
+            <strong>{{ gap.title }}</strong>
+            <span class="badge text-bg-warning">{{ gap.status }}</span>
+            <p>{{ gap.detail }}</p>
+        </li>
+        {% endfor %}
+    </ul>
+</section>
+{% endif %}
+
+<section class="table-panel mb-4">
+    <div class="panel-heading"><h2>Findings at a glance</h2></div>
+    <table class="table table-sm compliance-table">
+        <thead>
+            <tr>
+                <th>Finding</th>
+                <th>Verdict</th>
+                <th>Confidence</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for v in verdicts %}
+            {% set c = controls.get(v.control_id, {}) %}
+            <tr>
+                <td><strong>{{ c.get('title', 'Unknown') }}</strong></td>
+                <td>{{ verdict_badge(v.verdict) }}</td>
+                <td>{{ '%.0f'|format(v.score * 100) if v.score is not none else '—' }}%</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</section>
+
+<section class="table-panel">
+    <div class="panel-heading d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <h2>Full gap analysis document</h2>
+        <small class="text-muted">Sections 1–8: executive summary, KPIs, findings register, remediation roadmap</small>
+    </div>
+    <div class="report-body compliance-report-doc p-4">{{ html_body|safe }}</div>
+</section>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>if (window.lucide) window.lucide.createIcons();</script>
+{% endblock %}

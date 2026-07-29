@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+
+{% block title %}Compliance Reports | ARIA Bank{% endblock %}
+{% block page_title %}Gap Analysis Reports{% endblock %}
+
+{% block content %}
+{% include "compliance_nav.html" %}
+
+<section class="page-banner compact">
+    <div>
+        <p class="eyebrow">Stored assessments</p>
+        <h2>Compliance & gap analysis reports</h2>
+        <p class="panel-subtitle">Every scan produces a full professional report saved to <code>compliance_reports</code> in the local SQLite database.</p>
+    </div>
+</section>
+
+<section class="table-panel">
+    <table class="table align-middle compliance-table">
+        <thead>
+            <tr>
+                <th>Report</th>
+                <th>Linked scan</th>
+                <th>Summary</th>
+                <th>Review status</th>
+                <th>Created</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for r in reports %}
+            <tr>
+                <td><strong>#{{ r.id }}</strong></td>
+                <td>Scan #{{ r.scan_id }}<br><small>{{ r.scan_timestamp }}</small></td>
+                <td><small>{{ (r.executive_summary or 'Open report for full gap analysis.')[:100] }}{% if r.executive_summary and r.executive_summary|length > 100 %}…{% endif %}</small></td>
+                <td>
+                    {% if r.human_reviewed %}
+                    <span class="badge text-bg-success">Reviewed</span>
+                    {% else %}
+                    <span class="badge text-bg-warning">Awaiting review</span>
+                    {% endif %}
+                </td>
+                <td>{{ r.created_at }}</td>
+                <td><a class="btn btn-sm btn-outline-light" href="{{ url_for('compliance.admin_compliance_report_detail', report_id=r.id) }}">Read report</a></td>
+            </tr>
+            {% else %}
+            <tr><td colspan="6" class="empty-state">No reports yet. Run a scan from the Compliance Monitor dashboard.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</section>
+{% endblock %}

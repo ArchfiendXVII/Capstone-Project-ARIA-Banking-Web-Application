@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import os
-import secrets
 import sqlite3
 from datetime import datetime
 from functools import wraps
@@ -12,6 +11,7 @@ load_dotenv()
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATABASE = os.path.join(BASE_DIR, "aria_bank.db")
+from uuid import uuid4
 
 from flask import (
     Flask,
@@ -27,12 +27,15 @@ from flask import (
 
 from transfer_service import process_transfer
 
+from compliance.routes import compliance_bp
+
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATABASE = os.path.join(BASE_DIR, "aria_bank.db")
 
 app = Flask(__name__)
-app.config["SECRET_KEY"] = os.getenv("SECRET_KEY")
+app.config["SECRET_KEY"] = "aria-bank-dev-secret"
+app.register_blueprint(compliance_bp)
 
 if not app.config["SECRET_KEY"]:
     raise RuntimeError("SECRET_KEY environment variable is not set")
@@ -146,6 +149,122 @@ def log_event(
     get_db().commit()
 
 
+def _table_columns(db: sqlite3.Connection, table: str) -> set[str]:
+    rows = db.execute(f"PRAGMA table_info({table})").fetchall()
+    return {row[1] for row in rows}
+
+
+def _ensure_column(db: sqlite3.Connection, table: str, column: str, ddl: str) -> None:
+    if column not in _table_columns(db, table):
+        db.execute(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}")
+
+
+def migrate_schema() -> None:
+    db = get_db()
+    _ensure_column(db, "accounts", "balance_cents", "INTEGER")
+    _ensure_column(db, "transactions", "amount_cents", "INTEGER")
+    db.execute(
+        """
+        UPDATE accounts
+        SET balance_cents = CAST(ROUND(balance * 100) AS INTEGER)
+        WHERE balance_cents IS NULL
+        """
+    )
+    db.execute(
+        """
+        UPDATE transactions
+        SET amount_cents = CAST(ROUND(amount * 100) AS INTEGER)
+        WHERE amount_cents IS NULL
+        """
+    )
+    db.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS rejected_transfers (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            sender_account_id INTEGER NOT NULL,
+            recipient_lookup TEXT,
+            recipient_account_id INTEGER,
+            amount_cents INTEGER,
+            idempotency_key TEXT,
+            reason_code TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'rejected',
+            request_context TEXT,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY (user_id) REFERENCES users (id),
+            FOREIGN KEY (sender_account_id) REFERENCES accounts (id)
+        );
+
+        CREATE TABLE IF NOT EXISTS transfer_idempotency (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            sender_account_id INTEGER NOT NULL,
+            idempotency_key TEXT NOT NULL,
+            recipient_account_id INTEGER,
+            amount_cents INTEGER,
+            description TEXT,
+            status TEXT NOT NULL,
+            transaction_id INTEGER,
+            created_at TEXT NOT NULL,
+            UNIQUE(sender_account_id, idempotency_key),
+            FOREIGN KEY (sender_account_id) REFERENCES accounts (id),
+            FOREIGN KEY (transaction_id) REFERENCES transactions (id)
+        );
+
+        CREATE TABLE IF NOT EXISTS compliance_scans (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scan_timestamp TEXT NOT NULL,
+            scan_type TEXT NOT NULL DEFAULT 'manual',
+            triggered_by INTEGER,
+            kpi_snapshot TEXT NOT NULL,
+            check_results TEXT NOT NULL,
+            tool_results TEXT,
+            compliance_score_owasp REAL,
+            compliance_score_iso REAL,
+            compliance_score_nist REAL,
+            compliance_score_gdpr REAL,
+            findings_open INTEGER,
+            findings_resolved INTEGER,
+            iteration_count INTEGER DEFAULT 0,
+            shared_state TEXT,
+            status TEXT NOT NULL DEFAULT 'completed',
+            FOREIGN KEY (triggered_by) REFERENCES users (id)
+        );
+
+        CREATE TABLE IF NOT EXISTS compliance_reports (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scan_id INTEGER NOT NULL,
+            report_markdown TEXT NOT NULL,
+            verdicts_json TEXT,
+            disclosure_gaps_json TEXT,
+            llm_model TEXT,
+            human_reviewed INTEGER NOT NULL DEFAULT 0,
+            reviewed_by INTEGER,
+            reviewed_at TEXT,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (scan_id) REFERENCES compliance_scans (id),
+            FOREIGN KEY (reviewed_by) REFERENCES users (id)
+        );
+
+        CREATE TABLE IF NOT EXISTS compliance_control_verdicts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            control_id TEXT NOT NULL,
+            scan_id INTEGER NOT NULL,
+            verdict TEXT NOT NULL,
+            score REAL,
+            evidence_json TEXT,
+            last_verified_at TEXT NOT NULL,
+            verdict_expires_at TEXT NOT NULL,
+            FOREIGN KEY (scan_id) REFERENCES compliance_scans (id)
+        );
+        """
+    )
+    _ensure_column(db, "compliance_reports", "report_html", "TEXT")
+    _ensure_column(db, "compliance_reports", "report_sections_json", "TEXT")
+    _ensure_column(db, "compliance_reports", "executive_summary", "TEXT")
+    _ensure_column(db, "compliance_scans", "investigation_json", "TEXT")
+    db.commit()
+
+
 def init_db() -> None:
     db = get_db()
     db.executescript(
@@ -168,7 +287,6 @@ def init_db() -> None:
             account_number TEXT NOT NULL UNIQUE,
             account_type TEXT NOT NULL,
             balance REAL NOT NULL DEFAULT 0,
-            balance_cents INTEGER NOT NULL DEFAULT 0 CHECK (balance_cents >= 0),
             created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (user_id) REFERENCES users (id)
         );
@@ -178,44 +296,10 @@ def init_db() -> None:
             sender_account_id INTEGER,
             recipient_account_id INTEGER,
             amount REAL NOT NULL,
-            amount_cents INTEGER,
             description TEXT,
             status TEXT NOT NULL DEFAULT 'Completed',
             flagged INTEGER NOT NULL DEFAULT 0,
             created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (sender_account_id) REFERENCES accounts (id),
-            FOREIGN KEY (recipient_account_id) REFERENCES accounts (id)
-        );
-
-        CREATE TABLE IF NOT EXISTS transfer_idempotency (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            sender_account_id INTEGER NOT NULL,
-            idempotency_key TEXT NOT NULL,
-            recipient_account_id INTEGER,
-            amount_cents INTEGER NOT NULL,
-            description TEXT,
-            status TEXT NOT NULL,
-            transaction_id INTEGER,
-            created_at TEXT NOT NULL,
-            FOREIGN KEY (sender_account_id) REFERENCES accounts (id),
-            FOREIGN KEY (recipient_account_id) REFERENCES accounts (id),
-            FOREIGN KEY (transaction_id) REFERENCES transactions (id),
-            UNIQUE (sender_account_id, idempotency_key)
-        );
-
-        CREATE TABLE IF NOT EXISTS rejected_transfers (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            sender_account_id INTEGER NOT NULL,
-            recipient_lookup TEXT,
-            recipient_account_id INTEGER,
-            amount_cents INTEGER,
-            idempotency_key TEXT,
-            reason_code TEXT NOT NULL,
-            status TEXT NOT NULL DEFAULT 'rejected',
-            request_context TEXT,
-            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (user_id) REFERENCES users (id),
             FOREIGN KEY (sender_account_id) REFERENCES accounts (id),
             FOREIGN KEY (recipient_account_id) REFERENCES accounts (id)
         );
@@ -255,71 +339,9 @@ def init_db() -> None:
         """
     )
     db.commit()
-    migrate_transfer_security_schema()
+    migrate_schema()
     seed_data()
     seed_banking_content()
-
-
-def migrate_transfer_security_schema() -> None:
-    db = get_db()
-    account_columns = {row[1] for row in db.execute("PRAGMA table_info(accounts)").fetchall()}
-    if "balance_cents" not in account_columns:
-        db.execute("ALTER TABLE accounts ADD COLUMN balance_cents INTEGER NOT NULL DEFAULT 0")
-        db.execute(
-            """
-            UPDATE accounts
-            SET balance_cents = CAST(ROUND(balance * 100) AS INTEGER)
-            """
-        )
-
-    transaction_columns = {row[1] for row in db.execute("PRAGMA table_info(transactions)").fetchall()}
-    if "amount_cents" not in transaction_columns:
-        db.execute("ALTER TABLE transactions ADD COLUMN amount_cents INTEGER")
-        db.execute(
-            """
-            UPDATE transactions
-            SET amount_cents = CAST(ROUND(amount * 100) AS INTEGER)
-            WHERE amount_cents IS NULL
-            """
-        )
-
-    db.executescript(
-        """
-        CREATE TABLE IF NOT EXISTS transfer_idempotency (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            sender_account_id INTEGER NOT NULL,
-            idempotency_key TEXT NOT NULL,
-            recipient_account_id INTEGER,
-            amount_cents INTEGER NOT NULL,
-            description TEXT,
-            status TEXT NOT NULL,
-            transaction_id INTEGER,
-            created_at TEXT NOT NULL,
-            FOREIGN KEY (sender_account_id) REFERENCES accounts (id),
-            FOREIGN KEY (recipient_account_id) REFERENCES accounts (id),
-            FOREIGN KEY (transaction_id) REFERENCES transactions (id),
-            UNIQUE (sender_account_id, idempotency_key)
-        );
-
-        CREATE TABLE IF NOT EXISTS rejected_transfers (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            sender_account_id INTEGER NOT NULL,
-            recipient_lookup TEXT,
-            recipient_account_id INTEGER,
-            amount_cents INTEGER,
-            idempotency_key TEXT,
-            reason_code TEXT NOT NULL,
-            status TEXT NOT NULL DEFAULT 'rejected',
-            request_context TEXT,
-            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (user_id) REFERENCES users (id),
-            FOREIGN KEY (sender_account_id) REFERENCES accounts (id),
-            FOREIGN KEY (recipient_account_id) REFERENCES accounts (id)
-        );
-        """
-    )
-    db.commit()
 
 
 def seed_data() -> None:
@@ -343,32 +365,26 @@ def seed_data() -> None:
     )
 
     accounts = [
-        (1, "ARIA-1000-2401-9001", "Everyday Chequing", 4500.00, 450_000),
-        (2, "ARIA-1000-2401-9002", "Everyday Chequing", 8200.00, 820_000),
-        (3, "ARIA-2000-8800-3120", "Business Operating", 25000.00, 2_500_000),
+        (1, "ARIA-1000-2401-9001", "Everyday Chequing", 4500.00, 450000),
+        (2, "ARIA-1000-2401-9002", "Everyday Chequing", 8200.00, 820000),
+        (3, "ARIA-2000-8800-3120", "Business Operating", 25000.00, 2500000),
     ]
     db.executemany(
-        """
-        INSERT INTO accounts (user_id, account_number, account_type, balance, balance_cents)
-        VALUES (?, ?, ?, ?, ?)
-        """,
+        "INSERT INTO accounts (user_id, account_number, account_type, balance, balance_cents) VALUES (?, ?, ?, ?, ?)",
         accounts,
     )
 
     transactions = [
-        (1, 2, 250.00, 25_000, "Rent share reimbursement", "Completed", 0),
-        (2, 1, 75.50, 7_550, "Dinner transfer", "Completed", 0),
-        (3, 1, 1200.00, 120_000, "Vendor payment", "Completed", 1),
-        (1, 3, 315.25, 31_525, "Consulting invoice", "Completed", 0),
-        (2, 3, 50.00, 5_000, "Subscription payment", "Completed", 0),
+        (1, 2, 250.00, "Rent share reimbursement", "Completed", 0),
+        (2, 1, 75.50, "Dinner transfer", "Completed", 0),
+        (3, 1, 1200.00, "Vendor payment", "Completed", 1),
+        (1, 3, 315.25, "Consulting invoice", "Completed", 0),
+        (2, 3, 50.00, "Subscription payment", "Completed", 0),
     ]
     db.executemany(
         """
-        INSERT INTO transactions (
-            sender_account_id, recipient_account_id, amount, amount_cents,
-            description, status, flagged
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO transactions (sender_account_id, recipient_account_id, amount, description, status, flagged)
+        VALUES (?, ?, ?, ?, ?, ?)
         """,
         transactions,
     )
@@ -568,30 +584,33 @@ def transfer():
         (user["id"],),
     )
 
-    idempotency_key = secrets.token_urlsafe(32)
-
     if request.method == "POST":
+        recipient_lookup = request.form.get("recipient", "").strip()
+        description = request.form.get("description", "").strip()
+        amount_raw = request.form.get("amount", "0").strip()
+        idempotency_key = request.form.get("idempotency_key", "").strip()
+        request_context = {
+            "ip_address": request.remote_addr,
+            "user_agent": request.headers.get("User-Agent", ""),
+            "path": request.path,
+        }
         result = process_transfer(
             get_db(),
             user_id=user["id"],
             sender_account_id=sender_account["id"],
             sender_status=user["account_status"],
-            recipient_lookup=request.form.get("recipient", "").strip(),
-            amount_raw=request.form.get("amount", "0").strip(),
-            description=request.form.get("description", "").strip(),
-            idempotency_key=request.form.get("idempotency_key"),
-            request_context={
-                "ip_address": request.remote_addr,
-                "user_agent": request.headers.get("User-Agent"),
-                "path": request.path,
-                "method": request.method,
-            },
+            recipient_lookup=recipient_lookup,
+            amount_raw=amount_raw,
+            description=description,
+            idempotency_key=idempotency_key,
+            request_context=request_context,
         )
-        flash_level = "success" if result.success else "danger"
-        flash(result.message, flash_level)
         if result.success:
+            flash(result.message, "success" if not result.idempotent_replay else "info")
             return redirect(url_for("transactions"))
+        flash(result.message, "danger")
 
+    idempotency_key = str(uuid4())
     return render_template(
         "transfer.html",
         account=sender_account,
@@ -637,25 +656,24 @@ def transactions():
 def profile():
     user = current_user()
     account = get_user_account(user["id"])
-
     if request.method == "POST":
         full_name = request.form.get("full_name", "").strip()
         phone = request.form.get("phone", "").strip()
         address = request.form.get("address", "").strip()
-        role = request.form.get("role", user["role"]).strip()
+        if request.form.get("role"):
+            log_event(user["id"], "SUSPICIOUS_ROLE_SUBMISSION", f"Customer submitted role parameter: {request.form.get('role')}", "High")
         db = get_db()
         db.execute(
             """
-            UPDATE users SET full_name = ?, phone = ?, address = ?, role = ?
+            UPDATE users SET full_name = ?, phone = ?, address = ?
             WHERE id = ?
             """,
-            (full_name, phone, address, role, user["id"]),
+            (full_name, phone, address, user["id"]),
         )
         db.commit()
         log_event(user["id"], "PROFILE_UPDATED", "Customer profile updated.", "Low")
         flash("Profile updated.", "success")
         return redirect(url_for("profile"))
-
     return render_template("profile.html", user=user, account=account)
 
 
@@ -732,18 +750,21 @@ def documents():
 def statements():
     user = current_user()
     q = request.args.get("q", "")
-    owner = request.args.get("user_id", user["id"])
-    sql = f"""
+    owner = request.args.get("user_id", user["id"], type=int)
+    sql = """
         SELECT customer_documents.*, users.full_name, users.email
         FROM customer_documents
         JOIN users ON users.id = customer_documents.user_id
-        WHERE customer_documents.user_id = {owner}
+        WHERE customer_documents.user_id = ?
     """
+    params = [owner]
     if q:
-        sql += f" AND (filename LIKE '%{q}%' OR content_preview LIKE '%{q}%' OR document_type LIKE '%{q}%')"
+        sql += " AND (filename LIKE ? OR content_preview LIKE ? OR document_type LIKE ?)"
+        like_term = f"%{q}%"
+        params.extend([like_term, like_term, like_term])
     sql += " ORDER BY uploaded_at DESC"
-    docs = query_all(sql)
-    if str(owner) != str(user["id"]):
+    docs = query_all(sql, tuple(params))
+    if owner != user["id"]:
         log_event(user["id"], "UNAUTHORIZED_ACCESS_ATTEMPT", f"Statement search viewed user_id={owner}", "Medium")
     return render_template("statements.html", documents=docs, q=q, owner=owner)
 
@@ -754,7 +775,7 @@ def employee_portal():
     user = current_user()
     if user["role"] == "customer":
         log_event(user["id"], "EMPLOYEE_PORTAL_VIEW", "Employee portal viewed by customer account.", "High")
-
+        abort(403)
     users = query_all(
         """
         SELECT users.id, users.full_name, users.email, users.role, users.account_status,
@@ -782,7 +803,7 @@ def admin_dashboard():
     user = current_user()
     if user["role"] == "customer":
         log_event(user["id"], "ADMIN_DASHBOARD_VIEW", "Admin dashboard viewed by customer account.", "High")
-
+        abort(403)
     stats = {
         "users": query_one("SELECT COUNT(*) AS count FROM users")["count"],
         "transactions": query_one("SELECT COUNT(*) AS count FROM transactions")["count"],
@@ -894,16 +915,15 @@ def admin_rejected_transfers():
     rows = query_all(
         """
         SELECT rejected_transfers.*, users.full_name, users.email,
-               sa.account_number AS sender_account_number,
-               ra.account_number AS recipient_account_number
+               accounts.account_number AS sender_account_number
         FROM rejected_transfers
         JOIN users ON users.id = rejected_transfers.user_id
-        JOIN accounts sa ON sa.id = rejected_transfers.sender_account_id
-        LEFT JOIN accounts ra ON ra.id = rejected_transfers.recipient_account_id
+        JOIN accounts ON accounts.id = rejected_transfers.sender_account_id
         ORDER BY rejected_transfers.created_at DESC
         LIMIT 200
         """
     )
+    log_event(session.get("user_id"), "ADMIN_VIEW_REJECTED_TRANSFERS", "Staff viewed rejected transfer log.", "Low")
     return render_template("admin_rejected_transfers.html", rejected_transfers=rows)
 
 

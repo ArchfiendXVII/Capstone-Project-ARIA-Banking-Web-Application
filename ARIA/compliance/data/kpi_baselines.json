@@ -1,0 +1,122 @@
+{
+  "KPI-01": {
+    "label": "Total Open Vulnerabilities",
+    "description": "Number of security controls (F-01..F-18) where at least one automated check failed or returned partial results. Lower is better — each count represents an area of the application that does not meet its stated security claim.",
+    "direction": "lower_better",
+    "baseline": 18,
+    "target": 3,
+    "unit": "controls"
+  },
+  "KPI-02": {
+    "label": "Critical & High Severity Open",
+    "description": "Subset of open findings rated Critical or High priority (e.g. role tampering, IDOR, missing auth controls). These should be remediated before production release.",
+    "direction": "lower_better",
+    "baseline": 10,
+    "target": 0,
+    "unit": "findings"
+  },
+  "KPI-03": {
+    "label": "Access Control Failures",
+    "description": "Count of failed AC-* checks: role tampering, unauthorized admin/employee access, IDOR on dashboard or transactions. Maps to OWASP A01 Broken Access Control.",
+    "direction": "lower_better",
+    "baseline": 6,
+    "target": 0,
+    "unit": "checks"
+  },
+  "KPI-04": {
+    "label": "Authentication Weaknesses",
+    "description": "Failed checks related to passwords, session secrets, and login rate limiting (F-01, F-02, WC-02). Indicates risk of credential abuse or brute-force attacks.",
+    "direction": "lower_better",
+    "baseline": 4,
+    "target": 0,
+    "unit": "checks"
+  },
+  "KPI-05": {
+    "label": "SQL Injection Risk",
+    "description": "Failed SI-* checks: unsafe SQL construction in code or exploitable query parameters on statements/transactions routes.",
+    "direction": "lower_better",
+    "baseline": 2,
+    "target": 0,
+    "unit": "checks"
+  },
+  "KPI-06": {
+    "label": "Forms Missing CSRF Protection",
+    "description": "1 if state-changing forms (transfer, profile, login) lack CSRF tokens; 0 if protected. Unprotected forms allow cross-site request forgery attacks.",
+    "direction": "lower_better",
+    "baseline": 8,
+    "target": 0,
+    "unit": "flag"
+  },
+  "KPI-07": {
+    "label": "IDOR & Data Exposure",
+    "description": "Issues where one user can access another user's data via parameter tampering (e.g. ?user_id=). Direct indicator of insecure direct object references.",
+    "direction": "lower_better",
+    "baseline": 6,
+    "target": 1,
+    "unit": "issues"
+  },
+  "KPI-08": {
+    "label": "Audit Log Completeness",
+    "description": "Percentage of critical security events (transfers, unauthorized access) logged with IP address, severity, and description. Required for forensics and SIEM correlation.",
+    "direction": "higher_better",
+    "baseline": 60,
+    "target": 95,
+    "unit": "%"
+  },
+  "KPI-09": {
+    "label": "Failed Login Log Quality",
+    "description": "Percentage of LOGIN_FAILED audit rows that include IP address and severity. Incomplete logs hinder intrusion detection.",
+    "direction": "higher_better",
+    "baseline": 0,
+    "target": 100,
+    "unit": "%"
+  },
+  "KPI-10": {
+    "label": "Privacy Workflow Coverage",
+    "description": "Count of GDPR privacy routes present (/privacy, export, delete, consent) out of 4. Missing routes indicate compliance gaps for data subject rights.",
+    "direction": "higher_better",
+    "baseline": 0,
+    "target": 4,
+    "unit": "routes"
+  },
+  "KPI-11": {
+    "label": "Security Headers Present",
+    "description": "Count of required HTTP security headers (CSP, HSTS, X-Frame-Options, etc.) detected on responses. Headers reduce XSS, clickjacking, and MITM risk.",
+    "direction": "higher_better",
+    "baseline": 0,
+    "target": 5,
+    "unit": "headers"
+  },
+  "KPI-12": {
+    "label": "Session Cookie Hardening",
+    "description": "Count of secure session cookie flags enabled (HttpOnly, Secure, SameSite, timeout). Weak cookies enable session hijacking.",
+    "direction": "higher_better",
+    "baseline": 1,
+    "target": 4,
+    "unit": "flags"
+  },
+  "KPI-13": {
+    "label": "Mean Remediation Age",
+    "description": "Average days open for tracked findings in the remediation register. Used to measure program velocity.",
+    "direction": "lower_better",
+    "baseline": null,
+    "target": 7,
+    "unit": "days"
+  },
+  "KPI-14": {
+    "label": "Automated Test Pass Rate",
+    "description": "Percentage of security smoke and transfer tests passing (smoke_tests.py, test_transfer_security.py). Validates regressions after fixes.",
+    "direction": "higher_better",
+    "baseline": null,
+    "target": 95,
+    "unit": "%"
+  },
+  "KPI-15": {
+    "label": "Overall Compliance Score",
+    "description": "Weighted average of OWASP, ISO, NIST, and GDPR framework sub-scores derived from check results. Primary executive metric for program health.",
+    "direction": "higher_better",
+    "baseline": 35,
+    "target": 80,
+    "unit": "%"
+  }
+}

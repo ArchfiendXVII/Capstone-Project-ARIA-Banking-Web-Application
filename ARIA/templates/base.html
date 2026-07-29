@@ -36,6 +36,7 @@
                     <a class="nav-link {% if request.endpoint == 'employee_portal' %}active{% endif %}" href="{{ url_for('employee_portal') }}"><i data-lucide="briefcase-business"></i>Employee Portal</a>
                     {% if current_user.role == 'admin' %}
                     <a class="nav-link {% if request.endpoint == 'admin_users' %}active{% endif %}" href="{{ url_for('admin_users') }}"><i data-lucide="users-round"></i>User Management</a>
+                    <a class="nav-link {% if request.endpoint and request.endpoint.startswith('compliance.') %}active{% endif %}" href="{{ url_for('compliance.admin_compliance') }}"><i data-lucide="shield-check"></i>Compliance Monitor</a>
                     {% endif %}
                     {% if current_user.role in ['staff', 'admin'] %}
                     <a class="nav-link {% if request.endpoint == 'admin_transactions' %}active{% endif %}" href="{{ url_for('admin_transactions') }}"><i data-lucide="landmark"></i>All Transactions</a>

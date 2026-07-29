@@ -1,0 +1,60 @@
+{% macro help_icon(text, label='More information') %}
+<span class="help-tip" tabindex="0" aria-label="{{ label }}">
+    <i data-lucide="help-circle" class="help-tip-icon"></i>
+    <span class="help-tip-bubble" role="tooltip">{{ text }}</span>
+</span>
+{% endmacro %}
+
+{% macro metric_card(label, value, description, target, unit, direction, status) %}
+<div class="metric-card kpi-card kpi-status-{{ status }}">
+    <div class="kpi-card-head">
+        <span class="kpi-label-main">{{ label }}</span>
+        {{ help_icon(description, label) }}
+    </div>
+    <strong class="kpi-value">{{ value if value is not none else '—' }}{% if unit == '%' and value is not none %}%{% endif %}</strong>
+    <small class="kpi-target">Target: {{ target if target is not none else '—' }}{% if unit == '%' and target is not none %}%{% elif unit and unit != 'flag' %} {{ unit }}{% endif %}</small>
+</div>
+{% endmacro %}
+
+{% macro verdict_badge(verdict) %}
+{% if verdict == 'Compliant' %}
+<span class="badge text-bg-success">Compliant</span>
+{% elif verdict == 'Non-Compliant' %}
+<span class="badge text-bg-danger">Non-Compliant</span>
+{% else %}
+<span class="badge text-bg-warning">Insufficient Evidence</span>
+{% endif %}
+{% endmacro %}
+
+{% macro evidence_block(item) %}
+<div class="evidence-block evidence-{{ item.get('status', 'unknown') }}">
+    <div class="evidence-block-head">
+        <strong>{{ item.get('test_name', 'Security check') }}</strong>
+        <span class="badge evidence-status-badge">{{ item.get('status', 'unknown')|upper }}</span>
+    </div>
+    <dl class="evidence-dl">
+        <div><dt>How tested</dt><dd>{{ item.get('method', '—') }}</dd></div>
+        <div><dt>Where</dt><dd>
+            {% if item.get('file') %}
+            <code>{{ item.file }}{% if item.get('line') %}:{{ item.line }}{% endif %}</code>
+            {% elif item.get('route') %}
+            <code>{{ item.route }}</code>
+            {% elif item.get('database') %}
+            Database <code>{{ item.database }}</code>{% if item.get('table') %} → table <code>{{ item.table }}</code>{% endif %}
+            {% else %}
+            {{ item.get('location', '—') }}
+            {% endif %}
+        </dd></div>
+        <div><dt>What we found</dt><dd>{{ item.get('observation', '—') }}</dd></div>
+        {% if item.get('request_detail') %}
+        <div><dt>Request / action</dt><dd>{{ item.request_detail }}</dd></div>
+        {% endif %}
+        {% if item.get('result_detail') %}
+        <div><dt>Raw result</dt><dd><small>{{ item.result_detail }}</small></dd></div>
+        {% endif %}
+    </dl>
+    {% if item.get('snippet') %}
+    <pre class="evidence-snippet"><code>{{ item.snippet }}</code></pre>
+    {% endif %}
+</div>
+{% endmacro %}

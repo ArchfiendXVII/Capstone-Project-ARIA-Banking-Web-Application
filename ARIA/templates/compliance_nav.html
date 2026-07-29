@@ -1,0 +1,15 @@
+{% set ep = request.endpoint or '' %}
+<nav class="compliance-subnav" aria-label="Compliance sections">
+    <a class="compliance-subnav-link {% if ep == 'compliance.admin_compliance' %}active{% endif %}" href="{{ url_for('compliance.admin_compliance') }}">
+        <i data-lucide="layout-dashboard"></i> Dashboard
+    </a>
+    <a class="compliance-subnav-link {% if ep == 'compliance.admin_compliance_investigation' %}active{% endif %}" href="{{ url_for('compliance.admin_compliance_investigation') }}">
+        <i data-lucide="microscope"></i> Investigation
+    </a>
+    <a class="compliance-subnav-link {% if ep == 'compliance.admin_compliance_findings' %}active{% endif %}" href="{{ url_for('compliance.admin_compliance_findings') }}">
+        <i data-lucide="shield-alert"></i> Findings
+    </a>
+    <a class="compliance-subnav-link {% if ep == 'compliance.admin_compliance_reports' or ep == 'compliance.admin_compliance_report_detail' %}active{% endif %}" href="{{ url_for('compliance.admin_compliance_reports') }}">
+        <i data-lucide="file-text"></i> Reports
+    </a>
+</nav>
