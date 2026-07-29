@@ -940,6 +940,19 @@ def forbidden(_):
 def not_found(_):
     return render_template("error.html", code=404, message="The requested ARIA Bank page was not found."), 404
 
+@app.errorhandler(CSRFError)
+def handle_csrf_error(error):
+    app.logger.warning(
+        "CSRF validation failed for %s: %s",
+        request.path,
+        error.description,
+    )
+    return render_template(
+        "error.html",
+        code=400,
+        message="Your form expired or could not be verified. Please reload the page and try again.",
+    ), 400
+
 
 with app.app_context():
     init_db()
