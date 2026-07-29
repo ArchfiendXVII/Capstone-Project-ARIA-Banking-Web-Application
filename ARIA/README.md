@@ -5,6 +5,13 @@
 ```powershell
 .\.venv\Scripts\pip install -r requirements.txt
 copy .env.example .env
+
+# Generate a unique Flask secret:
+.\.venv\Scripts\python -c "import secrets; print(secrets.token_hex(32))"
+
+# Place the generated value in .env:
+SECRET_KEY=value
+
 # Set OPENAI_API_KEY in .env for compliance scans
 .\.venv\Scripts\python run_server.py
 ```
@@ -38,4 +45,3 @@ Reports are written to `reports/` and persisted in `compliance_reports`.
 - Milestone 7 plan: [MILESTONE_7_LLM_COMPLIANCE_MONITORING_PLAN.md](./MILESTONE_7_LLM_COMPLIANCE_MONITORING_PLAN.md)
 - Initial compliance assessment guide: [INITIAL_COMPLIANCE_ASSESSMENT_GUIDE.md](./INITIAL_COMPLIANCE_ASSESSMENT_GUIDE.md)
 - Internal app security and compliance reference: [APP_SECURITY_AND_COMPLIANCE_REFERENCE.md](./APP_SECURITY_AND_COMPLIANCE_REFERENCE.md)
-

@@ -291,7 +291,17 @@ def check_si_03(ctx: dict[str, Any]) -> CheckResult:
 
 def check_cf_01(ctx: dict[str, Any]) -> CheckResult:
     source = _read_app_source(ctx)
-    hardcoded = 'SECRET_KEY"] = "aria-bank-dev-secret"' in source or "SECRET_KEY = " in source
+    hardcoded_patterns = (
+        r"""app\.config\[\s*["']SECRET_KEY["']\s*\]\s*=\s*(?:[rubfRUBF]*)["']""",
+        r"""app\.secret_key\s*=\s*(?:[rubfRUBF]*)["']""",
+        r"""SECRET_KEY\s*=\s*(?:[rubfRUBF]*)["']""",
+    )
+
+    hardcoded = any(
+        re.search(pattern, source)
+        for pattern in hardcoded_patterns
+    )
+
     return _result(
         "CF-01",
         "fail" if hardcoded else "pass",
