@@ -4,6 +4,14 @@ from io import BytesIO
 
 from app import DATABASE, app, get_db, init_db
 
+def csrf_token(client, path):
+    response = client.get(path)
+    match = re.search(
+        rb'name="csrf_token"\s+value="([^"]+)"',
+        response.data,
+    )
+    assert match, f"No CSRF token found on {path}"
+    return match.group(1).decode()
 
 def assert_ok(client, path):
     response = client.get(path, follow_redirects=True)
@@ -24,7 +32,11 @@ def assert_forbidden(client, path):
 def login(client, email, password):
     response = client.post(
         "/login",
-        data={"email": email, "password": password},
+        data={
+            "csrf_token": csrf_token(client, "/login"),
+            "email": email,
+            "password": password,
+        },
         follow_redirects=True,
     )
     assert response.status_code == 200
@@ -62,6 +74,7 @@ def run():
         response = client.post(
             "/transfer",
             data={
+                "csrf_token": csrf_token(client, "/transfer"),
                 "recipient": "sara@aria.local",
                 "amount": "10",
                 "description": "Smoke test transfer",
@@ -74,6 +87,7 @@ def run():
         response = client.post(
             "/support",
             data={
+                "csrf_token": csrf_token(client, "/support"),
                 "subject": "Smoke support",
                 "message": "Please review my recent transfer question.",
             },
@@ -84,6 +98,7 @@ def run():
         response = client.post(
             "/documents",
             data={
+                "csrf_token": csrf_token(client, "/documents"),
                 "document_type": "Statement",
                 "note": "smoke upload",
                 "document": (BytesIO(b"statement payroll rent transfer"), "smoke_statement.txt"),
@@ -113,11 +128,25 @@ def run():
         ]:
             assert_ok(client, path)
 
-        client.get("/logout", follow_redirects=True)
+        client.post(
+            "/logout",
+            data={"csrf_token": csrf_token(client, "/dashboard")},
+            follow_redirects=True,
+        )
         login(client, "john@aria.local", "password123")
         for path in ["/admin/compliance", "/admin/compliance/findings", "/admin/compliance/reports"]:
             assert_forbidden(client, path)
 
+        # negative security test:
+        response = client.post(
+            "/transfer",
+            data={
+                "recipient": "sara@aria.local",
+                "amount": "10",
+                "description": "Missing CSRF token",
+            },
+        )
+        assert response.status_code == 400
 
 if __name__ == "__main__":
     run()
